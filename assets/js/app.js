@@ -48,6 +48,89 @@ Hooks.SortableTasks = {
   }
 }
 
+Hooks.SmartViewPersist = {
+  mounted() {
+    this.onClick = (e) => {
+      const btn = e.target.closest("[data-view-set]")
+      if (btn) localStorage.setItem("smart:view", btn.dataset.viewSet)
+    }
+    this.el.addEventListener("click", this.onClick)
+
+    const stored = localStorage.getItem("smart:view")
+    if (!stored) return
+    const current = new URL(location).searchParams.get("view") === "board" ? "board" : "list"
+    if (stored !== current) {
+      const target = this.el.querySelector(`[data-view-set='${stored}']`)
+      if (target) target.click()
+    }
+  },
+  destroyed() {
+    this.el.removeEventListener("click", this.onClick)
+  }
+}
+
+Hooks.SortableCategories = {
+  mounted() {
+    const scope = this.el.dataset.sortScope
+    this.sortable = new Sortable(this.el, {
+      animation: 150,
+      ghostClass: "opacity-40",
+      dragClass: "cursor-grabbing",
+      handle: "[data-category-drag-handle]",
+      draggable: "[data-category-id]",
+      group: scope === "parent" ? "columns" : "groups",
+      onEnd: (evt) => {
+        const fromScope = evt.from.dataset.sortScope
+        const fromScopeId = evt.from.dataset.sortScopeId
+        const toScope = evt.to.dataset.sortScope
+        const toScopeId = evt.to.dataset.sortScopeId
+        const fromIds = Array.from(evt.from.querySelectorAll(":scope > [data-category-id]"))
+          .map(el => el.dataset.categoryId)
+        const toIds = Array.from(evt.to.querySelectorAll(":scope > [data-category-id]"))
+          .map(el => el.dataset.categoryId)
+
+        if (evt.from === evt.to) {
+          this.pushEvent("reorder_categories", {scope: toScope, scope_id: toScopeId, category_ids: toIds})
+        } else {
+          this.pushEvent("move_category", {
+            category_id: evt.item.dataset.categoryId,
+            from_scope: fromScope,
+            from_scope_id: fromScopeId,
+            to_scope: toScope,
+            to_scope_id: toScopeId,
+            from_category_ids: fromIds,
+            to_category_ids: toIds
+          })
+        }
+      }
+    })
+  },
+  destroyed() {
+    this.sortable && this.sortable.destroy()
+  }
+}
+
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-due-set]")
+  if (!btn) return
+  const form = btn.closest("form")
+  if (!form) return
+  const input = form.querySelector("input[name='task[due_at]']")
+  if (!input) return
+  const action = btn.dataset.dueSet
+  if (action === "clear") {
+    input.value = ""
+  } else {
+    const days = parseInt(action, 10)
+    const d = new Date()
+    d.setDate(d.getDate() + days)
+    d.setHours(17, 0, 0, 0)
+    const pad = (n) => String(n).padStart(2, "0")
+    input.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  }
+  input.dispatchEvent(new Event("change", {bubbles: true}))
+})
+
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,

@@ -54,7 +54,13 @@ defmodule ToDo.Boards do
   end
 
   def load_board(%Board{} = board) do
-    Repo.preload(board, groups: [children: [tasks: [:created_by]]])
+    tasks_q =
+      from(t in Task,
+        where: is_nil(t.deleted_at) and t.done == false,
+        order_by: [asc: t.position]
+      )
+
+    Repo.preload(board, groups: [children: [tasks: {tasks_q, [:created_by]}]])
   end
 
   def create_board(attrs) do
@@ -92,6 +98,8 @@ defmodule ToDo.Boards do
 
   def delete_category(%Category{} = category), do: Repo.delete(category)
 
+  def get_category!(id), do: Repo.get!(Category, id)
+
   # -- Tasks --
 
   def create_task(attrs) do
@@ -110,7 +118,53 @@ defmodule ToDo.Boards do
     task |> Task.changeset(attrs) |> Repo.update()
   end
 
-  def delete_task(%Task{} = task), do: Repo.delete(task)
+  @doc """
+  Toggle a task's done state. For a repeating task being checked (not→done),
+  instead of marking done we advance `due_at` by `repeat_every` units and keep
+  `done: false`. If the advanced date passes `repeat_until`, the final
+  occurrence is marked done permanently. Unchecking always just clears `done`.
+  """
+  def toggle_task_done(%Task{} = task) do
+    cond do
+      task.done ->
+        update_task(task, %{"done" => false})
+
+      task.repeat in ["day", "week", "month", "year"] and not is_nil(task.due_at) ->
+        every = max(task.repeat_every || 1, 1)
+        next_due = advance_due_at(task.due_at, task.repeat, every)
+
+        if past_repeat_until?(next_due, task.repeat_until) do
+          update_task(task, %{"done" => true})
+        else
+          update_task(task, %{"done" => false, "due_at" => next_due})
+        end
+
+      true ->
+        update_task(task, %{"done" => true})
+    end
+  end
+
+  defp past_repeat_until?(_next, nil), do: false
+
+  defp past_repeat_until?(%DateTime{} = next, %DateTime{} = until) do
+    DateTime.compare(next, until) == :gt
+  end
+
+  defp advance_due_at(%DateTime{} = dt, "day", n), do: DateTime.shift(dt, day: n)
+  defp advance_due_at(%DateTime{} = dt, "week", n), do: DateTime.shift(dt, day: 7 * n)
+  defp advance_due_at(%DateTime{} = dt, "month", n), do: DateTime.shift(dt, month: n)
+  defp advance_due_at(%DateTime{} = dt, "year", n), do: DateTime.shift(dt, year: n)
+
+  def delete_task(%Task{} = task) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    task |> Task.changeset(%{"deleted_at" => now}) |> Repo.update()
+  end
+
+  def restore_task(%Task{} = task) do
+    task |> Task.changeset(%{"deleted_at" => nil}) |> Repo.update()
+  end
+
+  def purge_task(%Task{} = task), do: Repo.delete(task)
 
   def get_task!(id), do: Repo.get!(Task, id)
 
@@ -121,6 +175,131 @@ defmodule ToDo.Boards do
         |> Repo.update_all(set: [category_id: category_id, position: index])
       end
     end)
+  end
+
+  @doc """
+  Reorder a set of categories that share the same parent scope.
+  `scope` is either `{:board, board_id}` for top-level groups or
+  `{:parent, parent_id}` for sub-columns. Category ids outside the
+  scope are ignored for safety.
+  """
+  def reorder_categories({:board, board_id}, category_ids) when is_list(category_ids) do
+    Repo.transaction(fn ->
+      for {category_id, index} <- Enum.with_index(category_ids) do
+        from(c in Category,
+          where: c.id == ^category_id and c.board_id == ^board_id and is_nil(c.parent_id)
+        )
+        |> Repo.update_all(set: [position: index])
+      end
+    end)
+  end
+
+  def reorder_categories({:parent, parent_id}, category_ids) when is_list(category_ids) do
+    Repo.transaction(fn ->
+      for {category_id, index} <- Enum.with_index(category_ids) do
+        from(c in Category,
+          where: c.id == ^category_id and c.parent_id == ^parent_id
+        )
+        |> Repo.update_all(set: [position: index])
+      end
+    end)
+  end
+
+  @doc """
+  Move a column (child category) from one parent group to another, and apply
+  the resulting orderings of both lists. Scoped to `board_id` for safety.
+  """
+  def move_column_between_parents(board_id, category_id, to_parent_id, from_ids, to_ids)
+      when is_list(from_ids) and is_list(to_ids) do
+    Repo.transaction(fn ->
+      from(c in Category,
+        where: c.id == ^category_id and c.board_id == ^board_id and not is_nil(c.parent_id)
+      )
+      |> Repo.update_all(set: [parent_id: to_parent_id])
+
+      for {cid, index} <- Enum.with_index(from_ids) do
+        from(c in Category, where: c.id == ^cid and c.board_id == ^board_id)
+        |> Repo.update_all(set: [position: index])
+      end
+
+      for {cid, index} <- Enum.with_index(to_ids) do
+        from(c in Category,
+          where: c.id == ^cid and c.board_id == ^board_id and c.parent_id == ^to_parent_id
+        )
+        |> Repo.update_all(set: [position: index])
+      end
+    end)
+  end
+
+  @doc """
+  Returns tasks visible to `user_id` across owned + shared boards, filtered by
+  `scope` — :today, :upcoming, :anytime, or :waiting.
+  Each result is `%{task:, board:, category:, group:}`.
+  """
+  def list_smart_tasks(user_id, scope) do
+    now = DateTime.utc_now()
+    end_of_today = DateTime.new!(Date.utc_today(), ~T[23:59:59], "Etc/UTC")
+
+    base =
+      from(t in Task,
+        join: c in Category, on: c.id == t.category_id,
+        join: b in Board, on: b.id == c.board_id,
+        left_join: g in Category, on: g.id == c.parent_id,
+        left_join: bs in BoardShare, on: bs.board_id == b.id and bs.user_id == ^user_id,
+        left_join: ts in TaskShare, on: ts.task_id == t.id and ts.user_id == ^user_id,
+        where: b.owner_id == ^user_id or not is_nil(bs.id) or not is_nil(ts.id),
+        select: %{task: t, board: b, category: c, group: g}
+      )
+
+    base =
+      if scope == :trash do
+        base
+      else
+        from [t, _c, _b, _g, _bs, _ts] in base, where: is_nil(t.deleted_at)
+      end
+
+    base
+    |> apply_smart_filter(scope, now, end_of_today)
+    |> Repo.all()
+  end
+
+  defp apply_smart_filter(q, :today, _now, eod) do
+    from [t, _c, _b, _g, _bs, _ts] in q,
+      where: t.done == false and not is_nil(t.due_at) and t.due_at <= ^eod,
+      order_by: [asc: t.due_at, asc: t.position]
+  end
+
+  defp apply_smart_filter(q, :upcoming, _now, eod) do
+    from [t, _c, _b, _g, _bs, _ts] in q,
+      where: t.done == false and not is_nil(t.due_at) and t.due_at > ^eod,
+      order_by: [asc: t.due_at, asc: t.position]
+  end
+
+  defp apply_smart_filter(q, :anytime, _now, _eod) do
+    from [t, _c, _b, _g, _bs, _ts] in q,
+      where: t.done == false and is_nil(t.due_at),
+      order_by: [asc: t.inserted_at]
+  end
+
+  defp apply_smart_filter(q, :waiting, _now, _eod) do
+    from [t, c, _b, g, _bs, _ts] in q,
+      where:
+        t.done == false and
+          (t.waiting == true or c.waiting == true or
+             (not is_nil(g.id) and g.waiting == true)),
+      order_by: [asc: t.position]
+  end
+
+  defp apply_smart_filter(q, :completed, _now, _eod) do
+    from [t, _c, _b, _g, _bs, _ts] in q,
+      where: t.done == true,
+      order_by: [desc: t.updated_at]
+  end
+
+  defp apply_smart_filter(q, :trash, _now, _eod) do
+    from [t, _c, _b, _g, _bs, _ts] in q,
+      where: not is_nil(t.deleted_at),
+      order_by: [desc: t.deleted_at]
   end
 
   # -- Permissions --
@@ -293,6 +472,7 @@ defmodule ToDo.Boards do
       join: c in Category, on: c.id == t.category_id,
       join: b in Board, on: b.id == c.board_id,
       where: s.user_id == ^user_id and b.owner_id != ^user_id,
+      where: is_nil(t.deleted_at),
       where: c.board_id not in subquery(board_ids_accessible),
       select: %{task: t, permission: s.permission, board: b, category: c},
       order_by: [asc: b.name, asc: c.position, asc: t.position]

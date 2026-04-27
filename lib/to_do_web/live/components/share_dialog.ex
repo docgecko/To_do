@@ -122,7 +122,7 @@ defmodule ToDoWeb.ShareDialog do
 
     Swoosh.Email.new()
     |> Swoosh.Email.to(invitation.email)
-    |> Swoosh.Email.from({"ToDo", "noreply@to-do.local"})
+    |> Swoosh.Email.from({"Orelle", "noreply@orelle.app"})
     |> Swoosh.Email.subject("#{inviter.email} invited you to #{subject_desc}")
     |> Swoosh.Email.text_body("""
     Hi,

@@ -80,6 +80,131 @@ defmodule ToDoWeb.CoreComponents do
   end
 
   @doc """
+  Renders a centered modal dialog with a form slot.
+
+  The modal is dismissible via the close button, click-away, and the Escape key.
+  All three trigger the `on_cancel` event name (no param).
+
+  ## Examples
+
+      <.form_modal id="new-board-modal" title="Create a new board" on_cancel="close_modal" accent_color={@color}>
+        <.form for={@form} phx-change="validate_board" phx-submit="save_board">
+          ...
+        </.form>
+      </.form_modal>
+  """
+  attr :id, :string, default: nil
+  attr :title, :string, required: true
+  attr :accent_color, :string, default: nil, doc: "optional hex color for the top accent bar"
+  attr :on_cancel, :string, required: true, doc: "event name fired to dismiss the modal"
+  attr :max_width, :string, default: "max-w-lg"
+  slot :inner_block, required: true
+
+  def form_modal(assigns) do
+    ~H"""
+    <div class="fixed inset-0 z-50 bg-base-content/40 backdrop-blur-sm flex items-start justify-center pt-24 px-4">
+      <div
+        id={@id}
+        class={[
+          "bg-base-100 rounded-xl shadow-xl border border-base-300 w-full overflow-hidden",
+          @max_width
+        ]}
+        phx-click-away={@on_cancel}
+        phx-key="escape"
+        phx-window-keydown={@on_cancel}
+      >
+        <div :if={@accent_color} class="h-2" style={"background:#{@accent_color}"}></div>
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-5">
+            <h2 class="text-lg font-semibold">{@title}</h2>
+            <button
+              type="button"
+              phx-click={@on_cancel}
+              class="btn btn-ghost btn-sm btn-circle"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
+          {render_slot(@inner_block)}
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders the sticky footer area of a form modal.
+
+  Use this inside a `.form` block so the submit button posts to the right form.
+
+  ## Example
+
+      <.modal_footer>
+        <:secondary>
+          <button type="button" phx-click="close_modal" class="btn btn-ghost">Cancel</button>
+        </:secondary>
+        <:primary>
+          <.button type="submit" variant="primary">Create</.button>
+        </:primary>
+      </.modal_footer>
+  """
+  slot :secondary
+  slot :primary
+  slot :destructive
+
+  def modal_footer(assigns) do
+    ~H"""
+    <div class="flex items-center gap-2 pt-2 border-t border-base-300 -mx-6 px-6 -mb-6 py-4 bg-base-200/40 mt-5">
+      <span :if={@destructive != []}>{render_slot(@destructive)}</span>
+      <div class="flex-1"></div>
+      <span :if={@secondary != []}>{render_slot(@secondary)}</span>
+      <span :if={@primary != []}>{render_slot(@primary)}</span>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a color-preset picker: a row of swatches plus a native color picker.
+
+  Fires `on_pick` with `phx-value-color=<hex>` when a swatch is clicked. The
+  native color picker is a regular `<input type="color" name={color_field}>`
+  which is picked up by the surrounding form.
+  """
+  attr :presets, :list, required: true
+  attr :selected, :string, default: nil
+  attr :on_pick, :string, required: true, doc: "event name fired on swatch click"
+  attr :color_field, :string, required: true, doc: "form input name for native color field"
+
+  def color_picker(assigns) do
+    ~H"""
+    <div class="flex items-center gap-3">
+      <div class="flex flex-wrap gap-2">
+        <button
+          :for={preset <- @presets}
+          type="button"
+          phx-click={@on_pick}
+          phx-value-color={preset}
+          class={[
+            "w-8 h-8 rounded-full border-2 transition cursor-pointer",
+            @selected == preset && "border-base-content scale-110",
+            @selected != preset && "border-transparent hover:scale-105"
+          ]}
+          style={"background:#{preset}"}
+          aria-label={"Pick color #{preset}"}
+        ></button>
+      </div>
+      <label class="relative cursor-pointer" title="Custom color">
+        <input type="color" name={@color_field} value={@selected || "#3b82f6"} class="sr-only peer" />
+        <span class="w-8 h-8 rounded-full flex items-center justify-center border-2 border-dashed border-base-300 text-base-content/60 peer-focus-visible:ring-2 peer-focus-visible:ring-primary">
+          <.icon name="hero-swatch" class="size-4" />
+        </span>
+      </label>
+    </div>
+    """
+  end
+
+  @doc """
   Renders a button with navigation support.
 
   ## Examples

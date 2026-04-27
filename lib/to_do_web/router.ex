@@ -57,6 +57,12 @@ defmodule ToDoWeb.Router do
       live "/boards", BoardLive.Index, :index
       live "/boards/:id", BoardLive.Show, :show
       live "/shared", BoardLive.Shared, :index
+      live "/today", TaskLive.Smart, :today
+      live "/upcoming", TaskLive.Smart, :upcoming
+      live "/anytime", TaskLive.Smart, :anytime
+      live "/waiting", TaskLive.Smart, :waiting
+      live "/completed", TaskLive.Smart, :completed
+      live "/trash", TaskLive.Smart, :trash
     end
 
     post "/users/update-password", UserSessionController, :update_password

@@ -8,7 +8,8 @@ defmodule ToDoWeb.UserLive.Settings do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope}>
+    <Layouts.shell flash={@flash} current_scope={@current_scope} page_title="Settings">
+      <div class="max-w-xl mx-auto space-y-6">
       <div class="text-center">
         <.header>
           Account Settings
@@ -65,7 +66,8 @@ defmodule ToDoWeb.UserLive.Settings do
           Save Password
         </.button>
       </.form>
-    </Layouts.app>
+      </div>
+    </Layouts.shell>
     """
   end
 

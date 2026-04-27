@@ -5,7 +5,7 @@ defmodule ToDoWeb.PageController do
     if conn.assigns[:current_scope] do
       redirect(conn, to: ~p"/boards")
     else
-      redirect(conn, to: ~p"/users/log-in")
+      render(conn, :home)
     end
   end
 end

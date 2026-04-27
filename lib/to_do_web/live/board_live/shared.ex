@@ -44,8 +44,8 @@ defmodule ToDoWeb.BoardLive.Shared do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="max-w-3xl mx-auto space-y-6">
+    <Layouts.shell flash={@flash} current_scope={@current_scope} page_title="Shared with me" active={:shared}>
+      <div class="max-w-3xl space-y-6">
         <.header>
           Shared tasks
           <:subtitle>Tasks others have shared with you directly.</:subtitle>
@@ -74,13 +74,11 @@ defmodule ToDoWeb.BoardLive.Shared do
                 class="checkbox checkbox-sm mt-1"
               />
               <div class="flex-1">
-                <div class={["break-words", row.task.done && "line-through text-base-content/50"]}>
+                <div class={["break-words leading-tight", row.task.done && "line-through text-base-content/50"]}>
                   {row.task.title}
                 </div>
-                <div :if={row.task.notes && row.task.notes != ""} class="text-xs text-base-content/60 mt-1 whitespace-pre-line">
-                  {row.task.notes}
-                </div>
-                <div class="text-xs text-base-content/50 mt-1">
+                <div :if={row.task.notes && row.task.notes != ""} class="text-xs text-base-content/60 leading-tight whitespace-pre-line">{row.task.notes}</div>
+                <div class="text-xs text-base-content/50 mt-2">
                   in <span class="italic">{row.category.name}</span>
                 </div>
               </div>
@@ -89,7 +87,7 @@ defmodule ToDoWeb.BoardLive.Shared do
           </ul>
         </section>
       </div>
-    </Layouts.app>
+    </Layouts.shell>
     """
   end
 end
