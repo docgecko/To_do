@@ -157,7 +157,7 @@ defmodule ToDoWeb.TaskLive.Smart do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.shell flash={@flash} current_scope={@current_scope} page_title={@title} active={@scope} current_board={@sidebar_board}>
+    <Layouts.shell flash={@flash} current_scope={@current_scope} page_title={@title} active={@scope} current_board={@sidebar_board} unread_notifications={@unread_notifications} recent_notifications={@recent_notifications}>
       <:title_extra>
         <.link
           :for={board <- header_boards(@grouped, @sidebar_board)}
@@ -385,6 +385,14 @@ defmodule ToDoWeb.TaskLive.Smart do
                           </div>
                         </li>
                       </ul>
+                      <.link
+                        :if={@scope in [:today, :upcoming, :anytime, :waiting]}
+                        navigate={~p"/boards/#{b.board.id}?new=task:#{col.category.id}"}
+                        class="m-2 mt-1 px-2 py-1.5 rounded text-sm text-base-content/60 hover:text-base-content hover:bg-base-200/60 inline-flex items-center gap-1 self-start"
+                        title="Add a task to this column"
+                      >
+                        <.icon name="hero-plus" class="size-4" /> Add Task
+                      </.link>
                     </div>
                   </div>
                 </div>
