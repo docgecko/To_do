@@ -80,6 +80,18 @@ defmodule ToDo.Accounts do
     |> Repo.insert()
   end
 
+  ## Avatar
+
+  @doc """
+  Sets `avatar_path` on the user (or nil to clear). Pure passthrough — the
+  caller is responsible for putting the file on disk first.
+  """
+  def set_user_avatar(%User{} = user, path) do
+    user
+    |> Ecto.Changeset.change(%{avatar_path: path})
+    |> Repo.update()
+  end
+
   ## Settings
 
   @doc """

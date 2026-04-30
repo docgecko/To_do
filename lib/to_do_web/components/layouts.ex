@@ -194,9 +194,17 @@ defmodule ToDoWeb.Layouts do
     ~H"""
     <div class="dropdown dropdown-end">
       <div tabindex="0" role="button" class="cursor-pointer">
-        <div class="w-9 h-9 rounded-full bg-primary text-primary-content flex items-center justify-center text-sm font-semibold">
-          {@current_scope.user.email |> String.first() |> String.upcase()}
-        </div>
+        <%= if @current_scope.user.avatar_path do %>
+          <img
+            src={@current_scope.user.avatar_path}
+            alt="Your avatar"
+            class="w-9 h-9 rounded-full object-cover border border-base-300"
+          />
+        <% else %>
+          <div class="w-9 h-9 rounded-full bg-primary text-primary-content flex items-center justify-center text-sm font-semibold">
+            {@current_scope.user.email |> String.first() |> String.upcase()}
+          </div>
+        <% end %>
       </div>
       <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-10 mt-2 w-56 p-2 shadow border border-base-300">
         <li class="menu-title">

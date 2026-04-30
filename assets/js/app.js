@@ -25,8 +25,117 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/to_do"
 import topbar from "../vendor/topbar"
 import Sortable from "../vendor/sortable.min.js"
+import Cropper from "../vendor/cropper.min.js"
+import "../vendor/cropper.min.css"
 
 const Hooks = {}
+
+// AvatarCropper: drives the crop flow when a user picks an image.
+//
+// HEEx structure expected:
+//   <div id="avatar-cropper" phx-hook="AvatarCropper">
+//     <form phx-change="validate_avatar">
+//       <input type="file" name="avatar" data-cropper-output ... />  (live_file_input)
+//     </form>
+//     <input type="file" data-cropper-input ... />
+//     <div data-cropper-stage hidden>
+//       <img data-cropper-image />
+//       <button data-cropper-cancel />
+//       <button data-cropper-save />
+//     </div>
+//   </div>
+//
+// On file pick: load into <img>, instantiate Cropper with a square aspect
+// ratio, show the stage. On Save: getCroppedCanvas().toBlob → DataTransfer
+// → assign to the LiveView upload input → fire `change` (and `input`) so
+// LV's auto-upload picks the file up.
+Hooks.AvatarCropper = {
+  mounted() {
+    this.input = this.el.querySelector("[data-cropper-input]")
+    this.stage = this.el.querySelector("[data-cropper-stage]")
+    this.image = this.el.querySelector("[data-cropper-image]")
+    this.cancelBtn = this.el.querySelector("[data-cropper-cancel]")
+    this.saveBtn = this.el.querySelector("[data-cropper-save]")
+
+    this.onPick = (e) => {
+      const file = e.target.files[0]
+      if (!file) return
+      const url = URL.createObjectURL(file)
+      this.image.src = url
+      this.stage.hidden = false
+      this.image.onload = () => {
+        if (this.cropper) this.cropper.destroy()
+        this.cropper = new Cropper(this.image, {
+          aspectRatio: 1,
+          viewMode: 1,
+          // Start with the crop box at 80% so the difference between
+          // "selected region" and "rest of image" is obvious.
+          autoCropArea: 0.8,
+          // Drag-mode "move" lets the user pan the *image* under the crop
+          // box; the box itself stays draggable/resizable via its handles.
+          dragMode: "move",
+          movable: true,
+          zoomable: true,
+          zoomOnWheel: true,
+          zoomOnTouch: true,
+          cropBoxMovable: true,
+          cropBoxResizable: true,
+          toggleDragModeOnDblclick: false,
+          responsive: true,
+          background: false,
+          rotatable: false,
+          scalable: false,
+        })
+      }
+    }
+
+    this.onCancel = () => this.reset()
+
+    this.onSave = () => {
+      if (!this.cropper) return
+      this.cropper.getCroppedCanvas({
+        width: 256,
+        height: 256,
+        imageSmoothingQuality: "high"
+      }).toBlob((blob) => {
+        const file = new File([blob], "avatar.jpg", {type: "image/jpeg"})
+        const dt = new DataTransfer()
+        dt.items.add(file)
+        // Re-query at save time — LV may have morphed the live_file_input
+        // element after a previous upload (the upload ref refreshes), so
+        // a reference cached at mount time can be stale.
+        const output = this.el.querySelector("[data-cropper-output]")
+        output.files = dt.files
+        // LiveView's file-input hook listens for `change`; some configs
+        // also respond to `input`. Dispatch both for safety — neither
+        // fires automatically when files are assigned programmatically.
+        output.dispatchEvent(new Event("input", {bubbles: true}))
+        output.dispatchEvent(new Event("change", {bubbles: true}))
+        this.reset()
+      }, "image/jpeg", 0.92)
+    }
+
+    this.input.addEventListener("change", this.onPick)
+    this.cancelBtn.addEventListener("click", this.onCancel)
+    this.saveBtn.addEventListener("click", this.onSave)
+  },
+  reset() {
+    if (this.cropper) {
+      this.cropper.destroy()
+      this.cropper = null
+    }
+    this.stage.hidden = true
+    this.input.value = ""
+    if (this.image.src) URL.revokeObjectURL(this.image.src)
+    this.image.src = ""
+  },
+  destroyed() {
+    if (this.cropper) this.cropper.destroy()
+    this.input?.removeEventListener("change", this.onPick)
+    this.cancelBtn?.removeEventListener("click", this.onCancel)
+    this.saveBtn?.removeEventListener("click", this.onSave)
+  }
+}
 
 Hooks.SortableTasks = {
   mounted() {
