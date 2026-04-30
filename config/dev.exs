@@ -86,3 +86,8 @@ config :phoenix_live_view,
 
 # Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false
+
+# Faster cadence in dev so notifications + email digests are easy to observe
+# while iterating. Production defaults to 60s scanner / 30 min mailer.
+config :to_do, ToDo.Notifications.Scanner, interval_ms: 30_000
+config :to_do, ToDo.Notifications.Mailer, interval_ms: 60_000
