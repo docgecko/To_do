@@ -378,7 +378,14 @@ defmodule ToDo.Boards do
         |> tag(:invited)
 
       user ->
-        upsert_board_share(board_id, user.id, permission) |> tag(:shared)
+        result = upsert_board_share(board_id, user.id, permission)
+
+        # Skip self-shares (a user re-sharing with themselves shouldn't ping them).
+        if match?({:ok, _}, result) and user.id != invited_by_id do
+          notify_board_shared(user.id, board_id, invited_by_id)
+        end
+
+        tag(result, :shared)
     end
   end
 
@@ -396,8 +403,53 @@ defmodule ToDo.Boards do
         |> tag(:invited)
 
       user ->
-        upsert_task_share(task_id, user.id, permission) |> tag(:shared)
+        result = upsert_task_share(task_id, user.id, permission)
+
+        if match?({:ok, _}, result) and user.id != invited_by_id do
+          notify_task_shared(user.id, task_id, invited_by_id)
+        end
+
+        tag(result, :shared)
     end
+  end
+
+  defp notify_board_shared(user_id, board_id, invited_by_id) do
+    body =
+      case Repo.get(Board, board_id) do
+        nil -> "A board was shared with you."
+        board -> "#{sharer_name(invited_by_id)} shared the board “#{board.name}” with you."
+      end
+
+    ToDo.Notifications.create_or_skip(%{
+      user_id: user_id,
+      kind: "board_shared",
+      board_id: board_id,
+      body: body
+    })
+  end
+
+  defp notify_task_shared(user_id, task_id, invited_by_id) do
+    body =
+      case Repo.get(Task, task_id) do
+        nil -> "A task was shared with you."
+        task -> "#{sharer_name(invited_by_id)} shared the task “#{task.title}” with you."
+      end
+
+    ToDo.Notifications.create_or_skip(%{
+      user_id: user_id,
+      kind: "task_shared",
+      task_id: task_id,
+      body: body
+    })
+  end
+
+  defp sharer_name(user_id) do
+    case Accounts.get_user!(user_id) do
+      %{email: email} -> email
+      _ -> "Someone"
+    end
+  rescue
+    Ecto.NoResultsError -> "Someone"
   end
 
   defp tag({:ok, record}, kind), do: {:ok, kind, record}
