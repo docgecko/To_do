@@ -385,14 +385,14 @@ defmodule ToDoWeb.TaskLive.Smart do
                           </div>
                         </li>
                       </ul>
-                      <.link
-                        :if={@scope in [:today, :upcoming, :anytime, :waiting]}
-                        navigate={~p"/boards/#{b.board.id}?new=task:#{col.category.id}"}
-                        class="m-2 mt-1 px-2 py-1.5 rounded text-sm text-base-content/60 hover:text-base-content hover:bg-base-200/60 inline-flex items-center gap-1 self-start"
-                        title="Add a task to this column"
-                      >
-                        <.icon name="hero-plus" class="size-4" /> Add Task
-                      </.link>
+                      <div :if={@scope in [:today, :upcoming, :anytime, :waiting]} class="p-2 border-t border-base-300">
+                        <.link
+                          navigate={~p"/boards/#{b.board.id}?new=task:#{col.category.id}"}
+                          class="btn btn-ghost btn-xs w-full justify-start"
+                        >
+                          + Add task
+                        </.link>
+                      </div>
                     </div>
                   </div>
                 </div>
