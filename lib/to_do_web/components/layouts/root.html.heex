@@ -9,6 +9,8 @@
     </.live_title>
     <meta name="description" content="Stack your day. Kanban boards with smart lists for Today, Upcoming, Anytime, and Waiting." />
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
+    <%!-- esbuild emits a sibling CSS file when JS imports stylesheets (e.g. cropper.min.css). --%>
+    <link phx-track-static rel="stylesheet" href={~p"/assets/js/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
     </script>
     <script>
