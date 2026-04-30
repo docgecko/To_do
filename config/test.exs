@@ -38,3 +38,7 @@ config :phoenix, :plug_init_mode, :runtime
 # Enable helpful, but potentially expensive runtime checks
 config :phoenix_live_view,
   enable_expensive_runtime_checks: true
+
+# Don't run the notifications scanner in tests; tests that need it can call
+# `ToDo.Notifications.Scanner.scan_now/0` explicitly.
+config :to_do, ToDo.Notifications.Scanner, interval_ms: :disabled

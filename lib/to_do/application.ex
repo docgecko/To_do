@@ -12,8 +12,7 @@ defmodule ToDo.Application do
       ToDo.Repo,
       {DNSCluster, query: Application.get_env(:to_do, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: ToDo.PubSub},
-      # Start a worker by calling: ToDo.Worker.start_link(arg)
-      # {ToDo.Worker, arg},
+      ToDo.Notifications.Scanner,
       # Start to serve requests, typically the last entry
       ToDoWeb.Endpoint
     ]
