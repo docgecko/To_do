@@ -9,6 +9,7 @@ defmodule ToDo.Accounts.User do
     field :confirmed_at, :utc_datetime
     field :authenticated_at, :utc_datetime, virtual: true
     field :avatar_path, :string
+    field :email_notifications_enabled, :boolean, default: true
 
     timestamps(type: :utc_datetime)
   end
