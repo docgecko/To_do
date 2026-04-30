@@ -42,3 +42,4 @@ config :phoenix_live_view,
 # Don't run the notifications scanner in tests; tests that need it can call
 # `ToDo.Notifications.Scanner.scan_now/0` explicitly.
 config :to_do, ToDo.Notifications.Scanner, interval_ms: :disabled
+config :to_do, ToDo.Notifications.Mailer, interval_ms: :disabled

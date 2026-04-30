@@ -81,4 +81,64 @@ defmodule ToDo.Accounts.UserNotifier do
     ==============================
     """)
   end
+
+  @doc """
+  Delivers a digest of unread, not-yet-emailed notifications. `notifications`
+  is a list of `%ToDo.Notifications.Notification{}` for the same user.
+  """
+  def deliver_task_digest(%User{} = user, notifications) when is_list(notifications) and notifications != [] do
+    {due_soon, overdue, shared} = group_by_kind(notifications)
+    body = render_digest(user, due_soon, overdue, shared)
+    subject = digest_subject(due_soon, overdue, shared)
+    deliver(user.email, subject, body)
+  end
+
+  defp group_by_kind(notifications) do
+    Enum.reduce(notifications, {[], [], []}, fn n, {soon, over, share} ->
+      case n.kind do
+        "task_due_soon" -> {[n | soon], over, share}
+        "task_overdue" -> {soon, [n | over], share}
+        "task_shared" -> {soon, over, [n | share]}
+        "board_shared" -> {soon, over, [n | share]}
+        _ -> {soon, over, share}
+      end
+    end)
+    |> then(fn {a, b, c} -> {Enum.reverse(a), Enum.reverse(b), Enum.reverse(c)} end)
+  end
+
+  defp digest_subject([], [], shared) when shared != [], do: "Orelle: #{length(shared)} new share(s)"
+  defp digest_subject([], over, _) when over != [], do: "Orelle: #{length(over)} overdue task(s)"
+  defp digest_subject(soon, [], _) when soon != [], do: "Orelle: #{length(soon)} task(s) due soon"
+  defp digest_subject(soon, over, _), do: "Orelle: #{length(soon)} due soon, #{length(over)} overdue"
+
+  defp render_digest(user, due_soon, overdue, shared) do
+    """
+
+    ==============================
+
+    Hi #{user.email},
+
+    Here's your task update from Orelle.
+
+    #{section("Overdue", overdue)}#{section("Due soon", due_soon)}#{section("Shared with you", shared)}
+
+    Open Orelle to view and manage these tasks.
+
+    To stop receiving these emails, visit your account settings.
+
+    ==============================
+    """
+  end
+
+  defp section(_title, []), do: ""
+
+  defp section(title, notifications) do
+    lines = Enum.map(notifications, fn n -> "  • #{n.body}" end) |> Enum.join("\n")
+
+    """
+    #{title}:
+    #{lines}
+
+    """
+  end
 end

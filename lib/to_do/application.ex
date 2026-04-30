@@ -13,6 +13,7 @@ defmodule ToDo.Application do
       {DNSCluster, query: Application.get_env(:to_do, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: ToDo.PubSub},
       ToDo.Notifications.Scanner,
+      ToDo.Notifications.Mailer,
       # Start to serve requests, typically the last entry
       ToDoWeb.Endpoint
     ]
