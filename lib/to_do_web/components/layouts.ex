@@ -73,6 +73,15 @@ defmodule ToDoWeb.Layouts do
   attr :active, :atom, default: nil, doc: "key for highlighting the active nav item"
   attr :current_board, :any, default: nil, doc: "the board in focus, if any"
   attr :current_group_id, :any, default: nil, doc: "the currently filtered group id, if any"
+
+  attr :unread_notifications, :integer,
+    default: 0,
+    doc: "unread-notification count for the current user"
+
+  attr :recent_notifications, :list,
+    default: [],
+    doc: "the user's most recent notifications, for the bell-icon dropdown"
+
   slot :actions
   slot :title_extra, doc: "content rendered inline next to the page title"
   slot :inner_block, required: true
@@ -132,6 +141,11 @@ defmodule ToDoWeb.Layouts do
           </div>
           <div class="flex items-center gap-3">
             {render_slot(@actions)}
+            <.notifications_bell
+              :if={@current_scope && @current_scope.user}
+              unread={@unread_notifications}
+              recent={@recent_notifications}
+            />
             <.user_menu current_scope={@current_scope} />
           </div>
         </header>
@@ -181,6 +195,85 @@ defmodule ToDoWeb.Layouts do
     </.link>
     """
   end
+
+  # ---- Notifications bell ----
+
+  attr :unread, :integer, default: 0
+  attr :recent, :list, default: []
+
+  defp notifications_bell(assigns) do
+    ~H"""
+    <div class="dropdown dropdown-end">
+      <div tabindex="0" role="button" class="cursor-pointer relative p-1 rounded hover:bg-base-300/60" aria-label="Notifications">
+        <.icon name="hero-bell" class="size-5" />
+        <span
+          :if={@unread > 0}
+          class="absolute -top-0.5 -right-0.5 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-error text-error-content text-[0.65rem] font-semibold leading-none flex items-center justify-center"
+        >
+          {if @unread > 99, do: "99+", else: @unread}
+        </span>
+      </div>
+      <div tabindex="0" class="dropdown-content z-10 mt-2 w-80 max-w-[90vw] bg-base-100 border border-base-300 rounded-box shadow">
+        <div class="flex items-center justify-between px-3 py-2 border-b border-base-300">
+          <span class="font-semibold text-sm">Notifications</span>
+          <button
+            :if={@unread > 0}
+            type="button"
+            phx-click="mark_all_notifications_read"
+            class="text-xs text-base-content/60 hover:text-base-content"
+          >
+            Mark all read
+          </button>
+        </div>
+        <ul class="max-h-96 overflow-y-auto py-1">
+          <li :if={@recent == []} class="px-3 py-6 text-center text-sm text-base-content/60">
+            You're all caught up.
+          </li>
+          <li :for={n <- @recent} class={["px-3 py-2 cursor-pointer hover:bg-base-200/60", is_nil(n.read_at) && "bg-primary/5"]}>
+            <button
+              type="button"
+              phx-click="mark_notification_read"
+              phx-value-id={n.id}
+              phx-value-href={notification_target(n)}
+              class="w-full text-left flex gap-2 items-start"
+            >
+              <.icon name={notification_icon(n.kind)} class="size-4 mt-0.5 shrink-0 text-base-content/70" />
+              <div class="flex-1 min-w-0">
+                <div class={["text-sm", is_nil(n.read_at) && "font-medium"]}>{n.body}</div>
+                <div class="text-xs text-base-content/50">{relative_time(n.inserted_at)}</div>
+              </div>
+              <span :if={is_nil(n.read_at)} class="size-2 rounded-full bg-primary mt-1.5 shrink-0" />
+            </button>
+          </li>
+        </ul>
+      </div>
+    </div>
+    """
+  end
+
+  defp notification_icon("task_due_soon"), do: "hero-clock"
+  defp notification_icon("task_overdue"), do: "hero-exclamation-triangle"
+  defp notification_icon("task_shared"), do: "hero-user-plus"
+  defp notification_icon("board_shared"), do: "hero-rectangle-stack"
+  defp notification_icon(_), do: "hero-bell"
+
+  defp notification_target(%{kind: "board_shared", board_id: id}) when not is_nil(id), do: "/boards/#{id}"
+  defp notification_target(%{task_id: id}) when not is_nil(id), do: "/today?edit=task:#{id}"
+  defp notification_target(_), do: ""
+
+  defp relative_time(dt) do
+    diff = DateTime.diff(DateTime.utc_now(), dt, :minute)
+
+    cond do
+      diff < 1 -> "just now"
+      diff < 60 -> "#{diff}m ago"
+      diff < 1440 -> "#{div(diff, 60)}h ago"
+      diff < 10_080 -> "#{div(diff, 1440)}d ago"
+      true -> Calendar.strftime(dt, "%b %d")
+    end
+  end
+
+  # ---- User menu ----
 
   attr :current_scope, :map, default: nil
 

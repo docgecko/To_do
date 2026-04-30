@@ -44,7 +44,7 @@ defmodule ToDoWeb.BoardLive.Shared do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.shell flash={@flash} current_scope={@current_scope} page_title="Shared with me" active={:shared}>
+    <Layouts.shell flash={@flash} current_scope={@current_scope} page_title="Shared with me" active={:shared} unread_notifications={@unread_notifications} recent_notifications={@recent_notifications}>
       <div class="max-w-3xl space-y-6">
         <.header>
           Shared tasks

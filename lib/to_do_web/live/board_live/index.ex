@@ -164,6 +164,8 @@ defmodule ToDoWeb.BoardLive.Index do
       page_title="Boards"
       active={:boards}
       current_board={@sidebar_board}
+      unread_notifications={@unread_notifications}
+      recent_notifications={@recent_notifications}
     >
       <:actions>
         <button

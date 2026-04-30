@@ -245,6 +245,102 @@ defmodule ToDoWeb.UserAuth do
     end
   end
 
+  # `:mount_notifications` — subscribes the LV to its user's notifications
+  # stream, assigns `:unread_notifications` and `:recent_notifications`, and
+  # attaches handle_info/handle_event hooks so the bell-dropdown events
+  # don't need to be declared in every LV. No-ops when there's no user.
+  def on_mount(:mount_notifications, _params, _session, socket) do
+    case socket.assigns[:current_scope] do
+      %Scope{user: %Accounts.User{} = user} ->
+        {:cont, setup_notifications(socket, user)}
+
+      _ ->
+        {:cont, socket}
+    end
+  end
+
+  defp setup_notifications(socket, user) do
+    if Phoenix.LiveView.connected?(socket) do
+      ToDo.Notifications.subscribe(user.id)
+    end
+
+    socket
+    |> Phoenix.Component.assign(:unread_notifications, ToDo.Notifications.unread_count(user.id))
+    |> Phoenix.Component.assign(:recent_notifications, ToDo.Notifications.list_recent(user.id, 10))
+    |> Phoenix.LiveView.attach_hook(:notifications_info, :handle_info, &handle_notification_info/2)
+    |> Phoenix.LiveView.attach_hook(
+      :notifications_event,
+      :handle_event,
+      &handle_notification_event/3
+    )
+  end
+
+  defp handle_notification_info({:notification, :created, notif}, socket) do
+    user_id = socket.assigns.current_scope.user.id
+    recent = [notif | socket.assigns.recent_notifications] |> Enum.take(10)
+
+    socket =
+      socket
+      |> Phoenix.Component.assign(:recent_notifications, recent)
+      |> Phoenix.Component.assign(:unread_notifications, ToDo.Notifications.unread_count(user_id))
+
+    {:halt, socket}
+  end
+
+  defp handle_notification_info({:notification, :read, _notif}, socket) do
+    user_id = socket.assigns.current_scope.user.id
+
+    socket =
+      socket
+      |> Phoenix.Component.assign(
+        :recent_notifications,
+        ToDo.Notifications.list_recent(user_id, 10)
+      )
+      |> Phoenix.Component.assign(:unread_notifications, ToDo.Notifications.unread_count(user_id))
+
+    {:halt, socket}
+  end
+
+  defp handle_notification_info({:notifications, :all_read}, socket) do
+    user_id = socket.assigns.current_scope.user.id
+
+    socket =
+      socket
+      |> Phoenix.Component.assign(
+        :recent_notifications,
+        ToDo.Notifications.list_recent(user_id, 10)
+      )
+      |> Phoenix.Component.assign(:unread_notifications, 0)
+
+    {:halt, socket}
+  end
+
+  defp handle_notification_info(_msg, socket), do: {:cont, socket}
+
+  defp handle_notification_event("mark_notification_read", %{"id" => id} = params, socket) do
+    notif = ToDo.Notifications.get!(id)
+    {:ok, _} = ToDo.Notifications.mark_read(notif)
+
+    socket =
+      case params["href"] do
+        href when is_binary(href) and href != "" ->
+          Phoenix.LiveView.push_navigate(socket, to: href)
+
+        _ ->
+          socket
+      end
+
+    {:halt, socket}
+  end
+
+  defp handle_notification_event("mark_all_notifications_read", _params, socket) do
+    user_id = socket.assigns.current_scope.user.id
+    {:ok, _} = ToDo.Notifications.mark_all_read(user_id)
+    {:halt, socket}
+  end
+
+  defp handle_notification_event(_event, _params, socket), do: {:cont, socket}
+
   defp mount_current_scope(socket, session) do
     Phoenix.Component.assign_new(socket, :current_scope, fn ->
       {user, _} =
