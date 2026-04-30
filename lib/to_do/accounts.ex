@@ -92,6 +92,16 @@ defmodule ToDo.Accounts do
     |> Repo.update()
   end
 
+  @doc """
+  Toggles whether the user receives email digests for notifications. The
+  bell-icon in-app stream is independent of this preference.
+  """
+  def set_email_notifications_enabled(%User{} = user, enabled?) when is_boolean(enabled?) do
+    user
+    |> Ecto.Changeset.change(%{email_notifications_enabled: enabled?})
+    |> Repo.update()
+  end
+
   ## Settings
 
   @doc """

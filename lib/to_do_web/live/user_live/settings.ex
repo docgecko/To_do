@@ -94,6 +94,28 @@ defmodule ToDoWeb.UserLive.Settings do
 
       <div class="divider" />
 
+      <%!-- Notifications --%>
+      <div id="notifications-section" class="space-y-3">
+        <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/60">Notifications</h2>
+        <label class="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            class="toggle toggle-primary mt-0.5"
+            checked={@user.email_notifications_enabled}
+            phx-click="toggle_email_notifications"
+          />
+          <span class="flex-1">
+            <span class="font-medium block">Email me about tasks</span>
+            <span class="text-sm text-base-content/60">
+              Receive a digest email when tasks are due soon, overdue, or shared with you.
+              In-app bell notifications stay on either way.
+            </span>
+          </span>
+        </label>
+      </div>
+
+      <div class="divider" />
+
       <.form for={@email_form} id="email_form" phx-submit="update_email" phx-change="validate_email">
         <.input
           field={@email_form[:email]}
@@ -271,6 +293,19 @@ defmodule ToDoWeb.UserLive.Settings do
     # Required so the upload control posts. The actual write happens in
     # `handle_avatar_progress/3` once the upload finishes.
     {:noreply, socket}
+  end
+
+  def handle_event("toggle_email_notifications", _params, socket) do
+    user = socket.assigns.user
+    new_value = !user.email_notifications_enabled
+    {:ok, updated} = Accounts.set_email_notifications_enabled(user, new_value)
+
+    flash_msg = if new_value, do: "Email notifications enabled.", else: "Email notifications disabled."
+
+    {:noreply,
+     socket
+     |> assign(:user, updated)
+     |> put_flash(:info, flash_msg)}
   end
 
   def handle_event("remove_avatar", _params, socket) do
