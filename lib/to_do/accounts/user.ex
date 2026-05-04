@@ -10,6 +10,7 @@ defmodule ToDo.Accounts.User do
     field :authenticated_at, :utc_datetime, virtual: true
     field :avatar_path, :string
     field :email_notifications_enabled, :boolean, default: true
+    field :last_board_id, :id
 
     timestamps(type: :utc_datetime)
   end

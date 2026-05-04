@@ -12,6 +12,10 @@ defmodule ToDoWeb.BoardLive.Show do
     user = socket.assigns.current_scope.user
     board = Boards.get_visible_board!(id, user.id) |> Boards.load_board()
 
+    # Stamp this as the user's most recently viewed board so the sidebar shows
+    # it next time they land on /today, /upcoming, /boards, etc.
+    {:ok, _} = Boards.remember_last_board(user, board.id)
+
     {:ok,
      socket
      |> assign(:board, board)

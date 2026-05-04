@@ -12,6 +12,7 @@ defmodule ToDo.Boards do
   import Ecto.Query, warn: false
   alias ToDo.Repo
   alias ToDo.Accounts
+  alias ToDo.Accounts.User
   alias ToDo.Boards.{Board, BoardShare, Category, Invitation, Task, TaskShare}
 
   # -- Boards CRUD --
@@ -21,6 +22,65 @@ defmodule ToDo.Boards do
     |> where([b], b.owner_id == ^user_id)
     |> order_by([b], asc: b.position, asc: b.inserted_at)
     |> Repo.all()
+  end
+
+  @doc """
+  Records the most recently visited board for the user. Used to keep the
+  sidebar's "current board" context in sync as the user moves around.
+  """
+  def remember_last_board(%User{} = user, board_id) when is_integer(board_id) do
+    if user.last_board_id == board_id do
+      {:ok, user}
+    else
+      from(u in User, where: u.id == ^user.id)
+      |> Repo.update_all(set: [last_board_id: board_id])
+
+      {:ok, %{user | last_board_id: board_id}}
+    end
+  end
+
+  @doc """
+  Returns the board the sidebar should treat as "current" for a given user.
+  Prefers the user's `last_board_id` if it points at a still-visible board;
+  otherwise falls back to the first board the user owns or has shared access
+  to. Returns `nil` if the user has no boards at all.
+  """
+  def sidebar_board_for_user(%User{id: user_id}), do: sidebar_board_for_user(user_id)
+
+  def sidebar_board_for_user(user_id) when is_integer(user_id) do
+    # Re-read last_board_id from the DB so we don't trip on a stale cached
+    # user struct (LiveView's current_scope is set via assign_new and persists
+    # across navigations within the same live_session).
+    last_id =
+      from(u in User, where: u.id == ^user_id, select: u.last_board_id)
+      |> Repo.one()
+
+    with id when not is_nil(id) <- last_id,
+         %Board{} = board <- visible_board(id, user_id) do
+      board
+    else
+      _ -> first_accessible_board(user_id)
+    end
+  end
+
+  defp visible_board(board_id, user_id) do
+    case Repo.get(Board, board_id) do
+      nil -> nil
+      board -> if board_permission(board, user_id) == :none, do: nil, else: board
+    end
+  end
+
+  defp first_accessible_board(user_id) do
+    case list_boards_for_user(user_id) do
+      [first | _] ->
+        first
+
+      [] ->
+        case list_shared_boards(user_id) do
+          [first | _] -> first
+          [] -> nil
+        end
+    end
   end
 
   def list_shared_boards(user_id) do

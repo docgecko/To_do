@@ -12,9 +12,9 @@ defmodule ToDoWeb.BoardLive.Index do
     owned = Boards.list_boards_for_user(user_id)
 
     sidebar_board =
-      case owned do
-        [first | _] -> Boards.load_board(first)
-        [] -> nil
+      case Boards.sidebar_board_for_user(user_id) do
+        nil -> nil
+        board -> Boards.load_board(board)
       end
 
     {:ok,
@@ -117,9 +117,9 @@ defmodule ToDoWeb.BoardLive.Index do
             owned = Boards.list_boards_for_user(user_id)
 
             sidebar_board =
-              case owned do
-                [first | _] -> Boards.load_board(first)
-                [] -> nil
+              case Boards.sidebar_board_for_user(user_id) do
+                nil -> nil
+                board -> Boards.load_board(board)
               end
 
             {:noreply,
@@ -142,9 +142,9 @@ defmodule ToDoWeb.BoardLive.Index do
     owned = Boards.list_boards_for_user(user_id)
 
     sidebar_board =
-      case owned do
-        [first | _] -> Boards.load_board(first)
-        [] -> nil
+      case Boards.sidebar_board_for_user(user_id) do
+        nil -> nil
+        board -> Boards.load_board(board)
       end
 
     {:noreply,
