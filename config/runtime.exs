@@ -21,22 +21,29 @@ if System.get_env("PHX_SERVER") do
 end
 
 if config_env() == :prod do
-  database_url =
-    System.get_env("DATABASE_URL") ||
-      raise """
-      environment variable DATABASE_URL is missing.
-      For example: ecto://USER:PASS@HOST/DATABASE
-      """
+  # Local libsql DB file (also serves as the embedded-replica when paired
+  # with Turso). On Fly.io point this at a persistent volume (e.g.
+  # `/data/to_do.db`).
+  replica_path = System.get_env("REPLICA_PATH") || "/data/to_do.db"
 
-  maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
+  # Optional Turso config — when both env vars are set, the libsql adapter
+  # turns on automatic sync between the local replica and the Turso primary.
+  turso_url = System.get_env("TURSO_DATABASE_URL")
+  turso_token = System.get_env("TURSO_AUTH_TOKEN")
 
-  config :to_do, ToDo.Repo,
-    # ssl: true,
-    url: database_url,
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
-    # For machines with several cores, consider starting multiple pools of `pool_size`
-    # pool_count: 4,
-    socket_options: maybe_ipv6
+  base_repo_config = [
+    database: replica_path,
+    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
+  ]
+
+  repo_config =
+    if turso_url && turso_token do
+      base_repo_config ++ [uri: turso_url, auth_token: turso_token, sync: true]
+    else
+      base_repo_config
+    end
+
+  config :to_do, ToDo.Repo, repo_config
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you

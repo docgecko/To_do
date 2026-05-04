@@ -56,10 +56,12 @@ defmodule ToDo.Accounts.UserToken do
   not expired (after @session_validity_in_days).
   """
   def verify_session_token_query(token) do
+    threshold = DateTime.utc_now() |> DateTime.add(-@session_validity_in_days, :day)
+
     query =
       from token in by_token_and_context_query(token, "session"),
         join: user in assoc(token, :user),
-        where: token.inserted_at > ago(@session_validity_in_days, "day"),
+        where: token.inserted_at > ^threshold,
         select: {%{user | authenticated_at: token.authenticated_at}, token.inserted_at}
 
     {:ok, query}
@@ -108,11 +110,12 @@ defmodule ToDo.Accounts.UserToken do
     case Base.url_decode64(token, padding: false) do
       {:ok, decoded_token} ->
         hashed_token = :crypto.hash(@hash_algorithm, decoded_token)
+        threshold = DateTime.utc_now() |> DateTime.add(-@magic_link_validity_in_minutes, :minute)
 
         query =
           from token in by_token_and_context_query(hashed_token, "login"),
             join: user in assoc(token, :user),
-            where: token.inserted_at > ago(^@magic_link_validity_in_minutes, "minute"),
+            where: token.inserted_at > ^threshold,
             where: token.sent_to == user.email,
             select: {user, token}
 
@@ -138,10 +141,11 @@ defmodule ToDo.Accounts.UserToken do
     case Base.url_decode64(token, padding: false) do
       {:ok, decoded_token} ->
         hashed_token = :crypto.hash(@hash_algorithm, decoded_token)
+        threshold = DateTime.utc_now() |> DateTime.add(-@change_email_validity_in_days, :day)
 
         query =
           from token in by_token_and_context_query(hashed_token, context),
-            where: token.inserted_at > ago(@change_email_validity_in_days, "day")
+            where: token.inserted_at > ^threshold
 
         {:ok, query}
 

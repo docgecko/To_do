@@ -32,6 +32,17 @@ to_do-*.tar
 /priv/static/uploads/*
 !/priv/static/uploads/.gitkeep
 
+# Local libsql DB / embedded-replica files (auto-recreated from Turso primary).
+/priv/data/
+
+# direnv-style local env file with TURSO credentials.
+.envrc
+
+# Preview launcher config — also has TURSO credentials baked in (the preview
+# tool's sandbox can't shell out to .claude/run_phx.sh). Kept on disk for the
+# launcher to read; never committed.
+.claude/launch.json
+
 # Ignore digested assets cache.
 /priv/static/cache_manifest.json
 

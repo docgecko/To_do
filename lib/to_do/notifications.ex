@@ -45,9 +45,11 @@ defmodule ToDo.Notifications do
 
   @doc "Most recent N notifications for a user (default 10), unread first."
   def list_recent(user_id, limit \\ 10) do
+    # `read_at IS NULL` evaluates to 1 (unread) or 0 (read); DESC puts unread
+    # rows first. Avoids `:asc_nulls_first` which `ecto_libsql` doesn't accept.
     from(n in Notification,
       where: n.user_id == ^user_id,
-      order_by: [asc_nulls_first: n.read_at, desc: n.inserted_at],
+      order_by: [desc: fragment("? IS NULL", n.read_at), desc: n.inserted_at],
       limit: ^limit
     )
     |> Repo.all()

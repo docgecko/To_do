@@ -1,14 +1,28 @@
 import Config
 
-# Configure your database
-config :to_do, ToDo.Repo,
-  username: System.get_env("USER") || "postgres",
-  password: "",
-  hostname: "localhost",
-  database: "to_do_dev",
+# Configure your database — libsql in dev.
+#
+# Always reads/writes a local file at priv/data/to_do.db. If TURSO_DATABASE_URL
+# and TURSO_AUTH_TOKEN are also set, the local file becomes an embedded
+# replica that auto-syncs with the Turso primary.
+turso_url = System.get_env("TURSO_DATABASE_URL")
+turso_token = System.get_env("TURSO_AUTH_TOKEN")
+
+base_repo_config = [
+  database: Path.expand("../priv/data/to_do.db", __DIR__),
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
-  pool_size: 10
+  pool_size: 5
+]
+
+repo_config =
+  if turso_url && turso_token do
+    base_repo_config ++ [uri: turso_url, auth_token: turso_token, sync: true]
+  else
+    base_repo_config
+  end
+
+config :to_do, ToDo.Repo, repo_config
 
 # For development, we disable any cache and enable
 # debugging and code reloading.

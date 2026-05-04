@@ -2,8 +2,10 @@ defmodule ToDo.Repo.Migrations.CreateInvitations do
   use Ecto.Migration
 
   def change do
+    email_type = if repo().__adapter__() == Ecto.Adapters.Postgres, do: :citext, else: :string
+
     create table(:invitations) do
-      add :email, :citext, null: false
+      add :email, email_type, null: false
       add :permission, :string, null: false
       add :token, :string, null: false
       add :expires_at, :utc_datetime, null: false
@@ -20,7 +22,14 @@ defmodule ToDo.Repo.Migrations.CreateInvitations do
     create index(:invitations, [:board_id])
     create index(:invitations, [:task_id])
 
-    create constraint(:invitations, :invitation_target,
-             check: "(board_id IS NOT NULL) <> (task_id IS NOT NULL)")
+    if repo().__adapter__() == Ecto.Adapters.Postgres do
+      create constraint(:invitations, :invitation_target,
+               check: "(board_id IS NOT NULL) <> (task_id IS NOT NULL)")
+    else
+      # SQLite/libsql doesn't support ALTER TABLE ADD CONSTRAINT.
+      # The same invariant ("exactly one of board_id / task_id") is enforced
+      # at the application layer in `ToDo.Boards.create_invitation/1`.
+      :ok
+    end
   end
 end
