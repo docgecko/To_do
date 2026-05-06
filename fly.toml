@@ -1,0 +1,41 @@
+# Fly.io configuration for the Orelle Phoenix release.
+#
+# Run migrations on every deploy (release_command), bind to an HTTP service
+# on Fly's internal port 4000, and let Fly's edge proxy terminate TLS for
+# us. The libsql replica file lives at /tmp/to_do.db (ephemeral; resyncs
+# from Turso on boot), so no volumes are mounted.
+
+app = "orelle"
+primary_region = "lhr"
+
+[build]
+
+[deploy]
+  release_command = "/app/bin/migrate"
+
+[env]
+  PHX_HOST = "orelle.fly.dev"
+  PORT = "4000"
+  REPLICA_PATH = "/tmp/to_do.db"
+
+[http_service]
+  internal_port = 4000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "30s"
+    method = "GET"
+    path = "/"
+    protocol = "http"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

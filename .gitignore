@@ -46,6 +46,11 @@ to_do-*.tar
 # Ignore digested assets cache.
 /priv/static/cache_manifest.json
 
+# Phoenix digest output (foo-<32hex>.ext) and gzipped variants. Regenerated
+# from source assets on every `mix assets.deploy` / Docker build.
+/priv/static/**/*-????????????????????????????????.*
+/priv/static/**/*.gz
+
 # In case you use Node.js/npm, you want to ignore these.
 npm-debug.log
 /assets/node_modules/

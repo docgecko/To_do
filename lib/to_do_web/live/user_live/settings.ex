@@ -213,36 +213,32 @@ defmodule ToDoWeb.UserLive.Settings do
   # upload to the user's chosen frame.
   defp handle_avatar_progress(:avatar, entry, socket) do
     if entry.done? do
-      uploads_dir = Path.join([:code.priv_dir(:to_do), "static", "uploads", "avatars"])
-      File.mkdir_p!(uploads_dir)
-
       user = socket.assigns.user
       filename = "#{user.id}-#{System.unique_integer([:positive])}.jpg"
-      dest = Path.join(uploads_dir, filename)
-      web_path = "/uploads/avatars/#{filename}"
+      old_value = user.avatar_path
 
-      consume_uploaded_entry(socket, entry, fn %{path: tmp} ->
-        # Best-effort cleanup of any prior avatar so we don't fill the disk.
-        case user.avatar_path do
-          "/uploads/" <> rest ->
-            old = Path.join([:code.priv_dir(:to_do), "static", "uploads", rest])
-            File.rm(old)
+      result =
+        consume_uploaded_entry(socket, entry, fn %{path: tmp} ->
+          ToDo.AvatarStorage.put(tmp, filename)
+        end)
 
-          _ ->
-            :ok
-        end
+      case result do
+        {:ok, web_path} ->
+          # Best-effort cleanup of the prior avatar (if any). Runs after the
+          # new upload succeeds so we don't lose the old one on a failed write.
+          if old_value, do: ToDo.AvatarStorage.delete(old_value)
 
-        File.cp!(tmp, dest)
-        {:ok, dest}
-      end)
+          {:ok, updated} = Accounts.set_user_avatar(user, web_path)
 
-      {:ok, updated} = Accounts.set_user_avatar(user, web_path)
+          {:noreply,
+           socket
+           |> assign(:user, updated)
+           |> assign_new_current_scope(updated)
+           |> put_flash(:info, "Avatar updated.")}
 
-      {:noreply,
-       socket
-       |> assign(:user, updated)
-       |> assign_new_current_scope(updated)
-       |> put_flash(:info, "Avatar updated.")}
+        {:error, reason} ->
+          {:noreply, put_flash(socket, :error, "Avatar upload failed: #{inspect(reason)}.")}
+      end
     else
       {:noreply, socket}
     end
@@ -311,14 +307,7 @@ defmodule ToDoWeb.UserLive.Settings do
   def handle_event("remove_avatar", _params, socket) do
     user = socket.assigns.user
 
-    case user.avatar_path do
-      "/uploads/" <> rest ->
-        path = Path.join([:code.priv_dir(:to_do), "static", "uploads", rest])
-        File.rm(path)
-
-      _ ->
-        :ok
-    end
+    if user.avatar_path, do: ToDo.AvatarStorage.delete(user.avatar_path)
 
     {:ok, updated} = Accounts.set_user_avatar(user, nil)
 

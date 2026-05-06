@@ -44,6 +44,13 @@ config :to_do, ToDoWeb.Endpoint,
 # at the `config/runtime.exs`.
 config :to_do, ToDo.Mailer, adapter: Swoosh.Adapters.Local
 
+# Swoosh API client — used by adapters that hit HTTP APIs (Resend in prod).
+config :swoosh, :api_client, Swoosh.ApiClient.Req
+
+# Avatar storage — defaults to the local-disk backend; runtime.exs swaps in
+# Tigris for prod when the relevant env vars are set.
+config :to_do, :avatar_storage, ToDo.AvatarStorage.Local
+
 # Configure esbuild (the version is required)
 config :esbuild,
   version: "0.25.4",

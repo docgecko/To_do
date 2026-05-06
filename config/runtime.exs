@@ -72,7 +72,45 @@ if config_env() == :prod do
       ip: {0, 0, 0, 0, 0, 0, 0, 0},
       port: port
     ],
-    secret_key_base: secret_key_base
+    secret_key_base: secret_key_base,
+    # Fly terminates TLS at its edge proxy and forwards plain HTTP, but the
+    # browser saw https. Force_ssl ensures any stray http:// link redirects
+    # to https:// and HSTS protects against downgrade.
+    force_ssl: [rewrite_on: [:x_forwarded_proto], hsts: true]
+
+  # ----- Production mailer (Resend) ----------------------------------------
+  resend_api_key = System.get_env("RESEND_API_KEY")
+
+  config :to_do, ToDo.Mailer,
+    adapter: Swoosh.Adapters.Resend,
+    api_key: resend_api_key
+
+  # ----- Avatar storage (Tigris) -------------------------------------------
+  # When all four envs are set, switch the storage backend over to Tigris.
+  # Otherwise fall through to the local-disk default — useful for self-hosted
+  # deploys that don't want object storage.
+  tigris_bucket = System.get_env("TIGRIS_BUCKET")
+  tigris_public_base = System.get_env("TIGRIS_PUBLIC_BASE")
+  tigris_access_key = System.get_env("AWS_ACCESS_KEY_ID")
+  tigris_secret_key = System.get_env("AWS_SECRET_ACCESS_KEY")
+
+  if tigris_bucket && tigris_public_base && tigris_access_key && tigris_secret_key do
+    config :to_do, :avatar_storage, ToDo.AvatarStorage.Tigris
+
+    config :to_do, :avatar_storage_tigris,
+      bucket: tigris_bucket,
+      public_base: tigris_public_base
+
+    config :ex_aws,
+      access_key_id: tigris_access_key,
+      secret_access_key: tigris_secret_key,
+      region: System.get_env("AWS_REGION") || "auto"
+
+    config :ex_aws, :s3,
+      scheme: "https://",
+      host: System.get_env("AWS_ENDPOINT_URL_S3") || "fly.storage.tigris.dev",
+      region: System.get_env("AWS_REGION") || "auto"
+  end
 
   # ## SSL Support
   #
@@ -106,21 +144,4 @@ if config_env() == :prod do
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.
 
-  # ## Configuring the mailer
-  #
-  # In production you need to configure the mailer to use a different adapter.
-  # Here is an example configuration for Mailgun:
-  #
-  #     config :to_do, ToDo.Mailer,
-  #       adapter: Swoosh.Adapters.Mailgun,
-  #       api_key: System.get_env("MAILGUN_API_KEY"),
-  #       domain: System.get_env("MAILGUN_DOMAIN")
-  #
-  # Most non-SMTP adapters require an API client. Swoosh supports Req, Hackney,
-  # and Finch out-of-the-box. This configuration is typically done at
-  # compile-time in your config/prod.exs:
-  #
-  #     config :swoosh, :api_client, Swoosh.ApiClient.Req
-  #
-  # See https://hexdocs.pm/swoosh/Swoosh.html#module-installation for details.
 end

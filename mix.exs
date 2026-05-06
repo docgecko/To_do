@@ -61,7 +61,14 @@ defmodule ToDo.MixProject do
        compile: false,
        depth: 1},
       {:swoosh, "~> 1.16"},
+      # Resend adapter for Swoosh (production mailer); local adapter used in dev.
+      {:resend, "~> 0.4"},
       {:req, "~> 0.5"},
+      # Tigris-/S3-compatible avatar storage in production. ex_aws_s3 keeps the
+      # local-disk fallback in dev/test untouched.
+      {:ex_aws, "~> 2.5"},
+      {:ex_aws_s3, "~> 2.5"},
+      {:sweet_xml, "~> 0.7"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 0.26"},

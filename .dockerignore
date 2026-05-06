@@ -1,0 +1,33 @@
+# Build/dep caches that would invalidate Docker layer caches
+_build
+deps
+node_modules
+.elixir_ls
+
+# Local DB / replica files (recreated at runtime from Turso)
+priv/data
+priv/static/uploads
+
+# Dev/test artifacts
+.DS_Store
+*.beam
+erl_crash.dump
+.fly
+.formatter.exs
+test
+cover
+doc
+tmp
+
+# Local env that should never enter the image
+.envrc
+.env
+.env.*
+.git
+.gitignore
+.github
+.claude
+
+# Editor garbage
+.vscode
+*.swp
