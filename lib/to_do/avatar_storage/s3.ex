@@ -1,19 +1,24 @@
-defmodule ToDo.AvatarStorage.Tigris do
+defmodule ToDo.AvatarStorage.S3 do
   @moduledoc """
-  Tigris (S3-compatible) backend.
+  Generic S3-compatible backend.
 
-  Reads bucket + public-base config from
-  `Application.get_env(:to_do, :avatar_storage_tigris, ...)`:
+  Works against any S3 API: Cloudflare R2, Tigris, AWS S3, MinIO, etc.
+  The endpoint, bucket, public URL prefix, and credentials all come from
+  config so the same code path covers all of them.
 
-      config :to_do, :avatar_storage_tigris,
-        bucket: "orelle-avatars",
-        public_base: "https://orelle-avatars.fly.storage.tigris.dev"
+  Configured at runtime (see `config/runtime.exs`):
 
-  AWS credentials and the Tigris endpoint are configured via the standard
-  `:ex_aws` keys (see runtime.exs in production).
+      config :to_do, :avatar_storage_s3,
+        bucket: System.get_env("S3_BUCKET"),
+        public_base: System.get_env("S3_PUBLIC_BASE")
+
+      config :ex_aws, :s3, ...                # endpoint + region
+      config :ex_aws, access_key_id: ..., secret_access_key: ...
 
   The bucket is expected to allow public reads on the `avatars/` prefix —
-  avatar URLs land directly in `<img src=...>` tags.
+  avatar URLs land directly in `<img src=...>` tags. For R2 that means
+  enabling public access on the bucket (gets you a `pub-<hash>.r2.dev`
+  URL) or attaching a custom domain.
   """
 
   @behaviour ToDo.AvatarStorage
@@ -46,7 +51,7 @@ defmodule ToDo.AvatarStorage.Tigris do
         :ok
 
       _ ->
-        # Stored value isn't a Tigris URL we recognise; treat as a no-op so
+        # Stored value isn't an S3 URL we recognise; treat as a no-op so
         # the caller can swap backends without orphaning the user's row.
         :ok
     end
@@ -55,7 +60,7 @@ defmodule ToDo.AvatarStorage.Tigris do
   def delete(_), do: :ok
 
   defp conf do
-    cfg = Application.fetch_env!(:to_do, :avatar_storage_tigris)
+    cfg = Application.fetch_env!(:to_do, :avatar_storage_s3)
     %{bucket: Keyword.fetch!(cfg, :bucket), public_base: Keyword.fetch!(cfg, :public_base)}
   end
 

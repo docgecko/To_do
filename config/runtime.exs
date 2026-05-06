@@ -85,31 +85,39 @@ if config_env() == :prod do
     adapter: Swoosh.Adapters.Resend,
     api_key: resend_api_key
 
-  # ----- Avatar storage (Tigris) -------------------------------------------
-  # When all four envs are set, switch the storage backend over to Tigris.
+  # ----- Avatar storage (S3-compatible: R2 / Tigris / AWS / MinIO / …) -----
+  # When all five envs are set, switch the storage backend to S3.
   # Otherwise fall through to the local-disk default — useful for self-hosted
   # deploys that don't want object storage.
-  tigris_bucket = System.get_env("TIGRIS_BUCKET")
-  tigris_public_base = System.get_env("TIGRIS_PUBLIC_BASE")
-  tigris_access_key = System.get_env("AWS_ACCESS_KEY_ID")
-  tigris_secret_key = System.get_env("AWS_SECRET_ACCESS_KEY")
+  #
+  # For Cloudflare R2:
+  #   S3_ENDPOINT     = <account-id>.r2.cloudflarestorage.com
+  #   S3_REGION       = auto
+  #   S3_BUCKET       = orelle-avatars
+  #   S3_PUBLIC_BASE  = https://pub-<hash>.r2.dev   (or custom domain)
+  #   S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY = R2 API token credentials
+  s3_endpoint = System.get_env("S3_ENDPOINT")
+  s3_bucket = System.get_env("S3_BUCKET")
+  s3_public_base = System.get_env("S3_PUBLIC_BASE")
+  s3_access_key = System.get_env("S3_ACCESS_KEY_ID")
+  s3_secret_key = System.get_env("S3_SECRET_ACCESS_KEY")
 
-  if tigris_bucket && tigris_public_base && tigris_access_key && tigris_secret_key do
-    config :to_do, :avatar_storage, ToDo.AvatarStorage.Tigris
+  if s3_endpoint && s3_bucket && s3_public_base && s3_access_key && s3_secret_key do
+    config :to_do, :avatar_storage, ToDo.AvatarStorage.S3
 
-    config :to_do, :avatar_storage_tigris,
-      bucket: tigris_bucket,
-      public_base: tigris_public_base
+    config :to_do, :avatar_storage_s3,
+      bucket: s3_bucket,
+      public_base: s3_public_base
 
     config :ex_aws,
-      access_key_id: tigris_access_key,
-      secret_access_key: tigris_secret_key,
-      region: System.get_env("AWS_REGION") || "auto"
+      access_key_id: s3_access_key,
+      secret_access_key: s3_secret_key,
+      region: System.get_env("S3_REGION") || "auto"
 
     config :ex_aws, :s3,
       scheme: "https://",
-      host: System.get_env("AWS_ENDPOINT_URL_S3") || "fly.storage.tigris.dev",
-      region: System.get_env("AWS_REGION") || "auto"
+      host: s3_endpoint,
+      region: System.get_env("S3_REGION") || "auto"
   end
 
   # ## SSL Support

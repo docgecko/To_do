@@ -20,36 +20,63 @@ flyctl apps create orelle --org personal
 If `orelle` is taken, pick another name and update `app = ` in `fly.toml`
 plus `PHX_HOST` in `[env]` to match.
 
-## 2. Provision Tigris storage for avatars
+## 2. Provision Cloudflare R2 storage for avatars
 
-Fly's `flyctl storage create` provisions a Tigris bucket and prints
-S3-style credentials (access key + secret + endpoint). It also stores those
-as Fly secrets on your app automatically.
+The avatar storage code talks to anything S3-compatible. We're using R2
+because the egress is free and the free tier (10 GB / 10M reads / 1M writes
+per month) easily covers the avatar workload.
 
-```sh
-flyctl storage create --name orelle-avatars --app orelle
-```
+### 2a. Create the bucket
 
-The output gives you `BUCKET_NAME`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
-`AWS_ENDPOINT_URL_S3`, etc. — all auto-set as secrets on the app.
+In the Cloudflare dashboard → **R2** → **Create bucket**:
 
-The avatar-storage code expects two extra envs that `flyctl storage create`
-doesn't set for you:
+- **Name:** `orelle-avatars`
+- **Location:** Eastern Europe (matches `lhr` and Turso `eu-west-1`) — or
+  whatever's closest
+- **Default storage class:** Standard
+
+### 2b. Enable public access
+
+We want `<img src=...>` to work without signed URLs.
+
+In the bucket → **Settings** → **Public access** → **R2.dev subdomain** →
+**Allow Access**. Cloudflare gives you a URL like
+`https://pub-3b8e4b5a1f2c4d8e9b3f6a7c2d1e0f5b.r2.dev`. **Save that** — it
+goes into the `S3_PUBLIC_BASE` env below.
+
+(Alternative: attach a custom domain like `avatars.orelle.app`. Better URLs
+but more setup; skip for v1.)
+
+### 2c. Generate API credentials
+
+Cloudflare dashboard → **R2** → **Manage R2 API Tokens** → **Create API
+Token**:
+
+- **Permissions:** *Object Read & Write* on `orelle-avatars` only
+  (principle of least privilege — the token can't hose other buckets)
+- **TTL:** No expiry (or rotate annually if you want)
+
+Cloudflare prints the credentials **once**. Capture:
+
+- **Access Key ID** — goes into `S3_ACCESS_KEY_ID`
+- **Secret Access Key** — goes into `S3_SECRET_ACCESS_KEY`
+- **Endpoint** — `<account-id>.r2.cloudflarestorage.com` — goes into
+  `S3_ENDPOINT`
+
+### 2d. Set the secrets on Fly
 
 ```sh
 flyctl secrets set \
-  TIGRIS_BUCKET=orelle-avatars \
-  TIGRIS_PUBLIC_BASE=https://orelle-avatars.fly.storage.tigris.dev \
+  S3_BUCKET=orelle-avatars \
+  S3_ENDPOINT=<account-id>.r2.cloudflarestorage.com \
+  S3_PUBLIC_BASE=https://pub-<hash>.r2.dev \
+  S3_REGION=auto \
+  S3_ACCESS_KEY_ID=<from-token-creation> \
+  S3_SECRET_ACCESS_KEY=<from-token-creation> \
   --app orelle
 ```
 
-(If `flyctl storage create` named the bucket something different, substitute
-that name into both values above.)
-
-The bucket's `avatars/` prefix needs public-read so `<img src=...>` works
-without signed URLs. Set that policy via the Tigris CLI / dashboard, or
-issue an `s3api put-bucket-policy` call. The Fly docs cover this in
-[Tigris > Public access](https://fly.io/docs/tigris/object-storage/#public-access).
+Substitute the `<account-id>` and `<hash>` values you captured above.
 
 ## 3. Configure secrets
 
@@ -129,8 +156,11 @@ absolute URLs (in emails, etc.) under the new host.
   one of the three required runtime secrets isn't set. Re-run the `flyctl
   secrets set` step.
 - **First avatar upload returns `:nxdomain` or `:invalid_response`** —
-  Tigris bucket name doesn't match the configured `TIGRIS_BUCKET`, or the
-  public-read policy isn't applied yet.
+  bucket name doesn't match `S3_BUCKET`, the endpoint host is wrong, or
+  the API token doesn't have write permission on the bucket.
+- **Avatar uploads but `<img>` 404s** — public access not enabled on the
+  R2 bucket, or `S3_PUBLIC_BASE` doesn't match the bucket's
+  `pub-<hash>.r2.dev` URL.
 - **Scanner logs `Failed to connect: SQLite failure: database is locked`
   on every tick** — Fly's machine restarted before the libsql sync
   finished. Harmless; the next tick succeeds. If it persists, increase the
