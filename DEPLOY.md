@@ -30,7 +30,10 @@ per month) easily covers the avatar workload.
 
 In the Cloudflare dashboard → **R2** → **Create bucket**:
 
-- **Name:** `orelle-avatars`
+- **Name:** `orelle` (the avatars live under an `avatars/` key prefix
+  that the app adds automatically — no need to bake "avatars" into the
+  bucket name; if you ever store something else here later you'll
+  appreciate the room)
 - **Location:** Eastern Europe (matches `lhr` and Turso `eu-west-1`) — or
   whatever's closest
 - **Default storage class:** Standard
@@ -52,8 +55,8 @@ but more setup; skip for v1.)
 Cloudflare dashboard → **R2** → **Manage R2 API Tokens** → **Create API
 Token**:
 
-- **Permissions:** *Object Read & Write* on `orelle-avatars` only
-  (principle of least privilege — the token can't hose other buckets)
+- **Permissions:** *Object Read & Write* on `orelle` only (principle of
+  least privilege — the token can't hose other buckets)
 - **TTL:** No expiry (or rotate annually if you want)
 
 Cloudflare prints the credentials **once**. Capture:
@@ -67,7 +70,7 @@ Cloudflare prints the credentials **once**. Capture:
 
 ```sh
 flyctl secrets set \
-  S3_BUCKET=orelle-avatars \
+  S3_BUCKET=orelle \
   S3_ENDPOINT=<account-id>.r2.cloudflarestorage.com \
   S3_PUBLIC_BASE=https://pub-<hash>.r2.dev \
   S3_REGION=auto \
