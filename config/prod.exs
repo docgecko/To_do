@@ -7,6 +7,10 @@ import Config
 # before starting your production server.
 config :to_do, ToDoWeb.Endpoint, cache_static_manifest: "priv/static/cache_manifest.json"
 
+# HTTPS redirect is handled at Fly's edge (via `force_https = true` in
+# fly.toml) — applying force_ssl in the app would also redirect Fly's
+# internal HTTP health checks, infinite-looping at boot.
+
 # Configures Swoosh API Client
 config :swoosh, api_client: Swoosh.ApiClient.Req
 

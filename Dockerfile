@@ -9,14 +9,15 @@
 # release plus the runtime libraries we actually need (libstdc++,
 # libncurses, libssl, ca-certificates, locales).
 #
-# Pinned versions track the Phoenix 1.8 generator defaults; bump in
-# concert with `mix.exs`'s elixir requirement when upgrading.
+# Pinned versions: bump together when upgrading Elixir/OTP. hexpm/elixir
+# only ships 1.19.x on Ubuntu Resolute (25.10) at the moment, so the runner
+# matches.
 ARG ELIXIR_VERSION=1.19.5
-ARG OTP_VERSION=28.5.2
-ARG DEBIAN_VERSION=trixie-20251001-slim
+ARG OTP_VERSION=28.5
+ARG UBUNTU_DATE=20260421
 
-ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
-ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
+ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-ubuntu-resolute-${UBUNTU_DATE}"
+ARG RUNNER_IMAGE="ubuntu:resolute-${UBUNTU_DATE}"
 
 # ----- builder ----------------------------------------------------------
 FROM ${BUILDER_IMAGE} AS builder
@@ -46,11 +47,16 @@ COPY priv priv
 COPY lib lib
 COPY assets assets
 
+# Compile the app first — phoenix_live_view 1.1's compiler emits colocated
+# hook JS at `_build/<env>/phoenix-colocated/<app>/`, which esbuild then
+# imports during `assets.deploy`. Reverse this order and the bundler
+# blows up with `Could not resolve "phoenix-colocated/to_do"`.
+RUN mix compile
+
 # Compile assets (Tailwind + esbuild), then digest into priv/static.
 RUN mix assets.deploy
 
-# Compile the project, then runtime config and finally release.
-RUN mix compile
+# Runtime config + release tarball.
 COPY config/runtime.exs config/
 COPY rel rel
 RUN mix release

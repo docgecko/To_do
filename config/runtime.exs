@@ -72,11 +72,8 @@ if config_env() == :prod do
       ip: {0, 0, 0, 0, 0, 0, 0, 0},
       port: port
     ],
-    secret_key_base: secret_key_base,
-    # Fly terminates TLS at its edge proxy and forwards plain HTTP, but the
-    # browser saw https. Force_ssl ensures any stray http:// link redirects
-    # to https:// and HSTS protects against downgrade.
-    force_ssl: [rewrite_on: [:x_forwarded_proto], hsts: true]
+    secret_key_base: secret_key_base
+  # `force_ssl` is a compile-time Endpoint setting and lives in `config/prod.exs`.
 
   # ----- Production mailer (Resend) ----------------------------------------
   resend_api_key = System.get_env("RESEND_API_KEY")
