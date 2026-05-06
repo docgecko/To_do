@@ -25,7 +25,16 @@ defmodule ToDo.Notifications.Notification do
     |> validate_required([:user_id, :kind, :body])
     |> validate_inclusion(:kind, @kinds)
     |> validate_length(:body, max: 500)
+    # The migration names the partial unique indexes
+    # `notifications_user_kind_{task,board}_uniq`, and Postgres's error path
+    # surfaces those names. libsql/SQLite, however, only reports the
+    # (table.col, ...) tuple in its constraint error and ecto_libsql 0.9
+    # synthesizes Ecto's default index name from that tuple — a different
+    # string. Declaring both names lets the changeset translate either
+    # backend's collision into a clean validation error.
     |> unique_constraint([:user_id, :kind, :task_id], name: :notifications_user_kind_task_uniq)
+    |> unique_constraint([:user_id, :kind, :task_id], name: :notifications_user_id_kind_task_id_index)
     |> unique_constraint([:user_id, :kind, :board_id], name: :notifications_user_kind_board_uniq)
+    |> unique_constraint([:user_id, :kind, :board_id], name: :notifications_user_id_kind_board_id_index)
   end
 end

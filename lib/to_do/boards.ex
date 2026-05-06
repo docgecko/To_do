@@ -147,7 +147,13 @@ defmodule ToDo.Boards do
         id -> from(c in Category, where: c.parent_id == ^id)
       end
 
-    query |> select([c], coalesce(max(c.position), -1) + 1) |> Repo.one()
+    # NOTE: ecto_libsql 0.9 mis-compiles `coalesce(max(...), N) + M` to a bare
+    # `?` placeholder with no binding (returns nil). Compute the +1 in Elixir
+    # to avoid the bug.
+    case query |> select([c], max(c.position)) |> Repo.one() do
+      nil -> 0
+      n -> n + 1
+    end
   end
 
   defp next_category_position(_), do: 0
@@ -168,8 +174,12 @@ defmodule ToDo.Boards do
   end
 
   defp next_task_position(%{"category_id" => category_id}) do
-    from(t in Task, where: t.category_id == ^category_id, select: coalesce(max(t.position), -1) + 1)
-    |> Repo.one()
+    # See note in next_category_position/1 — same libsql codegen bug avoided.
+    case from(t in Task, where: t.category_id == ^category_id, select: max(t.position))
+         |> Repo.one() do
+      nil -> 0
+      n -> n + 1
+    end
   end
 
   defp next_task_position(_), do: 0
