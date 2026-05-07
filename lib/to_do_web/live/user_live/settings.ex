@@ -217,9 +217,16 @@ defmodule ToDoWeb.UserLive.Settings do
       filename = "#{user.id}-#{System.unique_integer([:positive])}.jpg"
       old_value = user.avatar_path
 
+      # Phoenix.LiveView.consume_uploaded_entry/3 expects the inner function
+      # to return `{:ok, term}` (which it then unwraps to `term`). Wrap our
+      # AvatarStorage result in a fresh `:ok` so the inner tuple — itself
+      # `{:ok, web_path}` or `{:error, reason}` — survives to be matched
+      # below. Without this wrapping, a successful upload returns a bare
+      # string URL that fails the `case` and crashes the LV with
+      # CaseClauseError.
       result =
         consume_uploaded_entry(socket, entry, fn %{path: tmp} ->
-          ToDo.AvatarStorage.put(tmp, filename)
+          {:ok, ToDo.AvatarStorage.put(tmp, filename)}
         end)
 
       case result do
