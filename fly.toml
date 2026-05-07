@@ -14,7 +14,7 @@ primary_region = "lhr"
   release_command = "/app/bin/migrate"
 
 [env]
-  PHX_HOST = "orelle.fly.dev"
+  PHX_HOST = "orelle.app"
   PORT = "4000"
   REPLICA_PATH = "/tmp/to_do.db"
 
