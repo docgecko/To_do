@@ -5,6 +5,7 @@ defmodule ToDoWeb.Router do
 
   pipeline :browser do
     plug :accepts, ["html"]
+    plug ToDoWeb.Plugs.CanonicalHost
     plug :fetch_session
     plug :fetch_live_flash
     plug :put_root_layout, html: {ToDoWeb.Layouts, :root}

@@ -62,6 +62,14 @@ if config_env() == :prod do
 
   config :to_do, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
+  # Canonical-host redirect: any request hitting orelle.fly.dev or
+  # www.orelle.app gets 301'd to the apex. Health checks (which arrive via
+  # IP/internal hostname) are unaffected because they aren't on the
+  # whitelist.
+  config :to_do, ToDoWeb.Plugs.CanonicalHost,
+    canonical: host,
+    redirect_from: ["orelle.fly.dev", "www.orelle.app"]
+
   config :to_do, ToDoWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
     http: [
