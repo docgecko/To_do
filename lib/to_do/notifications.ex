@@ -63,6 +63,17 @@ defmodule ToDo.Notifications do
     |> Repo.one()
   end
 
+  @doc """
+  Scoped fetch — returns the notification only if it belongs to `user_id`.
+  `nil` otherwise. Use this in any handler that takes a notification id
+  from the client; the unscoped `get!/1` is for trusted callers only
+  (mailer, scanner).
+  """
+  def get_for_user(user_id, id) do
+    from(n in Notification, where: n.id == ^id and n.user_id == ^user_id)
+    |> Repo.one()
+  end
+
   def get!(id), do: Repo.get!(Notification, id)
 
   ## Writes

@@ -344,19 +344,32 @@ defmodule ToDoWeb.UserAuth do
   defp handle_notification_info(_msg, socket), do: {:cont, socket}
 
   defp handle_notification_event("mark_notification_read", %{"id" => id} = params, socket) do
-    notif = ToDo.Notifications.get!(id)
-    {:ok, _} = ToDo.Notifications.mark_read(notif)
+    user_id = socket.assigns.current_scope.user.id
 
-    socket =
-      case params["href"] do
-        href when is_binary(href) and href != "" ->
-          Phoenix.LiveView.push_navigate(socket, to: href)
+    # Scope by user_id — without this, anyone authenticated could push
+    # `mark_notification_read` from DevTools with an enumerated id and flip
+    # `read_at` on another user's notification (write-only IDOR; would silently
+    # remove security-relevant `task_shared`/`board_shared` notifications from
+    # the victim's bell).
+    case ToDo.Notifications.get_for_user(user_id, id) do
+      nil ->
+        # Foreign or non-existent id — silently no-op rather than echo back.
+        {:halt, socket}
 
-        _ ->
-          socket
-      end
+      notif ->
+        {:ok, _} = ToDo.Notifications.mark_read(notif)
 
-    {:halt, socket}
+        socket =
+          case params["href"] do
+            href when is_binary(href) and href != "" ->
+              Phoenix.LiveView.push_navigate(socket, to: href)
+
+            _ ->
+              socket
+          end
+
+        {:halt, socket}
+    end
   end
 
   defp handle_notification_event("mark_all_notifications_read", _params, socket) do
