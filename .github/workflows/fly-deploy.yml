@@ -1,0 +1,38 @@
+name: Fly Deploy
+
+# Deploy on every push to main. The workflow itself does no testing — it
+# trusts whatever's been merged to main is shippable. Add a separate
+# `ci.yml` later if you want `mix test` / `mix format --check-formatted`
+# gates before this fires.
+on:
+  push:
+    branches:
+      - main
+  # Manual re-deploy (useful for "redeploy without a code change", e.g. when
+  # rotating secrets or kicking a stuck machine).
+  workflow_dispatch:
+
+# Avoid two deploys racing each other if main gets two pushes in quick
+# succession; only the latest run finishes.
+concurrency:
+  group: fly-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Fly.io
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy
+        run: flyctl deploy --remote-only --app orelle
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
