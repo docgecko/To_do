@@ -83,6 +83,57 @@ defmodule ToDo.Accounts.UserNotifier do
   end
 
   @doc """
+  Notifies all admins that a new invite request just came in. `admin_url`
+  deep-links to the admin review LV.
+  """
+  def deliver_invite_request_received(invite_request, admin_url) do
+    require Ecto.Query
+    admins = ToDo.Repo.all(Ecto.Query.from(u in User, where: u.is_admin == true))
+    msg = invite_request.message || "(no message)"
+
+    Enum.reduce_while(admins, {:ok, []}, fn admin, {:ok, acc} ->
+      case deliver(admin.email, "New invite request: #{invite_request.email}", """
+
+           ==============================
+
+           A new request to access Orelle just came in.
+
+           From:    #{invite_request.email}
+           Message: #{msg}
+
+           Review and approve / decline:
+
+           #{admin_url}
+
+           ==============================
+           """) do
+        {:ok, e} -> {:cont, {:ok, [e | acc]}}
+        err -> {:halt, err}
+      end
+    end)
+  end
+
+  @doc """
+  Notifies an approved requester that their account is ready and gives
+  them the magic-link login URL.
+  """
+  def deliver_invite_approved(email, url) do
+    deliver(email, "You're in: log in to Orelle", """
+
+    ==============================
+
+    Hi #{email},
+
+    Your request to access Orelle has been approved. Click below to log
+    in — the link is single-use:
+
+    #{url}
+
+    ==============================
+    """)
+  end
+
+  @doc """
   Delivers a digest of unread, not-yet-emailed notifications. `notifications`
   is a list of `%ToDo.Notifications.Notification{}` for the same user.
   """

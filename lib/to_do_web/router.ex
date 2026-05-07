@@ -21,6 +21,12 @@ defmodule ToDoWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    post "/request-invite", PageController, :request_invite
+
+    # Self-signup is disabled — visitors can only request access from `/`.
+    # We keep the `/users/register` route alive (rather than 404'ing) so
+    # bookmarks and any old emails redirect with a clear message.
+    get "/users/register", PageController, :register_redirect
   end
 
   # Other scopes may use custom stacks.
@@ -68,6 +74,14 @@ defmodule ToDoWeb.Router do
       live "/trash", TaskLive.Smart, :trash
     end
 
+    live_session :require_admin,
+      on_mount: [
+        {ToDoWeb.UserAuth, :require_admin},
+        {ToDoWeb.UserAuth, :mount_notifications}
+      ] do
+      live "/admin/invite-requests", AdminLive.InviteRequests, :index
+    end
+
     post "/users/update-password", UserSessionController, :update_password
   end
 
@@ -76,7 +90,8 @@ defmodule ToDoWeb.Router do
 
     live_session :current_user,
       on_mount: [{ToDoWeb.UserAuth, :mount_current_scope}] do
-      live "/users/register", UserLive.Registration, :new
+      # `/users/register` lives outside the live_session — see the
+      # PageController.register_redirect/2 controller action above.
       live "/users/log-in", UserLive.Login, :new
       live "/users/log-in/:token", UserLive.Confirmation, :new
       live "/invitations/:token", InvitationLive, :show
