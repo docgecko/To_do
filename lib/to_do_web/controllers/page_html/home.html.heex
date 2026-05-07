@@ -1,18 +1,27 @@
 <Layouts.flash_group flash={@flash} />
 
-<div class="min-h-screen flex flex-col bg-base-100 scroll-smooth">
+<div class="min-h-screen flex flex-col bg-base-100">
   <%!-- Top nav --%>
   <header class="px-6 py-4 flex items-center justify-between max-w-6xl mx-auto w-full">
     <a href="/" class="flex items-center gap-2">
       <img src={~p"/images/logo.svg"} width="32" height="32" alt="Orelle" />
       <span class="font-semibold text-lg">Orelle</span>
+      <span class="text-[10px] uppercase font-semibold tracking-widest px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+        Beta
+      </span>
     </a>
     <div class="flex items-center gap-3">
       <%= if @current_scope do %>
         <.link navigate={~p"/boards"} class="btn btn-primary btn-sm">Open boards →</.link>
       <% else %>
         <.link href={~p"/users/log-in"} class="btn btn-ghost btn-sm">Log in</.link>
-        <a href="#request-access" class="btn btn-primary btn-sm">Request access</a>
+        <button
+          type="button"
+          onclick="document.getElementById('request-access-modal').showModal()"
+          class="btn btn-primary btn-sm"
+        >
+          Request access
+        </button>
       <% end %>
     </div>
   </header>
@@ -21,6 +30,9 @@
   <section class="flex-1 flex items-center px-6 py-12 sm:py-20">
     <div class="max-w-6xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
       <div class="space-y-6">
+        <p :if={!@current_scope} class="text-xs font-semibold uppercase tracking-widest text-primary">
+          Private beta
+        </p>
         <h1 class="text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight leading-[1.05]">
           Stack your day.
         </h1>
@@ -31,12 +43,19 @@
           <%= if @current_scope do %>
             <.link navigate={~p"/boards"} class="btn btn-primary">Go to your boards →</.link>
           <% else %>
-            <a href="#request-access" class="btn btn-primary">Request access</a>
+            <button
+              type="button"
+              onclick="document.getElementById('request-access-modal').showModal()"
+              class="btn btn-primary"
+            >
+              Request access
+            </button>
             <.link href={~p"/users/log-in"} class="btn btn-ghost">I already have an account</.link>
           <% end %>
         </div>
-        <p :if={!@current_scope} class="text-xs text-base-content/50 pt-1">
-          Orelle is invite-only while we get the basics right.
+        <p :if={!@current_scope} class="text-sm text-base-content/60 pt-1 max-w-md">
+          Orelle is in private beta while we polish the core. We're letting people in
+          gradually — drop your email and a quick note about what you'd use it for.
         </p>
         <ul class="text-sm text-base-content/60 space-y-1.5 pt-4">
           <li class="flex items-center gap-2">
@@ -98,59 +117,81 @@
     </div>
   </section>
 
-  <%!-- Request-access form (shown only when not logged in) --%>
-  <section :if={!@current_scope} id="request-access" class="px-6 py-12 sm:py-16 border-t border-base-300 bg-base-200/30">
-    <div class="max-w-xl mx-auto w-full space-y-6">
-      <div class="space-y-2">
-        <h2 class="text-2xl sm:text-3xl font-semibold tracking-tight">Request access</h2>
-        <p class="text-base-content/70">
-          Drop your email and a quick note about how you'd use Orelle. We'll
-          get back to you. Already invited?
-          <.link href={~p"/users/log-in"} class="link link-primary">Log in</.link>.
-        </p>
-      </div>
-
-      <.form
-        :let={f}
-        for={@invite_request_form}
-        action={~p"/request-invite"}
-        method="post"
-        class="card bg-base-100 border border-base-300 shadow-sm p-6 space-y-4"
-      >
-        <.input
-          field={f[:email]}
-          type="email"
-          label="Email"
-          placeholder="you@example.com"
-          autocomplete="email"
-          required
-        />
-        <.input
-          field={f[:message]}
-          type="textarea"
-          label="What would you use Orelle for? (optional)"
-          rows="3"
-        />
-
-        <%!-- Honeypot: real users leave this empty; bots fill in every input.
-             Visually hidden via inline styles so adblockers don't strip it. --%>
-        <div style="position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden;" aria-hidden="true">
-          <label>
-            Leave this field empty
-            <input type="text" name="invite_request[website]" tabindex="-1" autocomplete="off" />
-          </label>
-        </div>
-
-        <div class="pt-1">
-          <.button type="submit" variant="primary" class="w-full sm:w-auto">
-            Request access
-          </.button>
-        </div>
-      </.form>
-    </div>
-  </section>
-
   <footer class="px-6 py-6 text-center text-xs text-base-content/50">
-    Orelle · Stack your day.
+    Orelle · Stack your day. · Private beta
   </footer>
 </div>
+
+<%!-- Request-access modal — uses the native <dialog> element. Triggered by
+     buttons in the header and hero. The form posts to /request-invite; on
+     validation error, the controller re-renders the home page with errors,
+     and the inline script at the bottom re-opens the modal so the user
+     sees the error. Honeypot field is still here, just hidden. --%>
+<dialog
+  :if={!@current_scope}
+  id="request-access-modal"
+  class="modal"
+>
+  <div class="modal-box max-w-lg">
+    <form method="dialog">
+      <button class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3" aria-label="Close">✕</button>
+    </form>
+
+    <h3 class="text-xl font-semibold tracking-tight">Request access</h3>
+    <p class="text-sm text-base-content/70 mt-2 mb-4">
+      Orelle is in private beta. Drop your email and a quick note about how
+      you'd use it; we'll be in touch when we let you in. Already invited?
+      <.link href={~p"/users/log-in"} class="link link-primary">Log in</.link>.
+    </p>
+
+    <.form
+      :let={f}
+      for={@invite_request_form}
+      action={~p"/request-invite"}
+      method="post"
+      class="space-y-4"
+    >
+      <.input
+        field={f[:email]}
+        type="email"
+        label="Email"
+        placeholder="you@example.com"
+        autocomplete="email"
+        required
+      />
+      <.input
+        field={f[:message]}
+        type="textarea"
+        label="What would you use Orelle for? (optional)"
+        rows="3"
+      />
+
+      <%!-- Honeypot. Real users skip this; bots that fill every input trip
+           it and the controller silently no-ops the submission. --%>
+      <div style="position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden;" aria-hidden="true">
+        <label>
+          Leave this field empty
+          <input type="text" name="invite_request[website]" tabindex="-1" autocomplete="off" />
+        </label>
+      </div>
+
+      <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+        <button type="button" onclick="document.getElementById('request-access-modal').close()" class="btn btn-ghost">
+          Cancel
+        </button>
+        <.button type="submit" variant="primary">Request access</.button>
+      </div>
+    </.form>
+  </div>
+
+  <%!-- Backdrop click closes the dialog. --%>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
+
+<%!-- If the controller re-rendered with form errors, re-open the modal so
+     the user sees them rather than a silently-closed page. --%>
+<script :if={!@current_scope and @invite_request_form.source.action != nil}>
+  document.getElementById('request-access-modal').showModal();
+</script>
