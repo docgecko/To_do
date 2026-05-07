@@ -4,17 +4,31 @@ defmodule ToDo.Accounts.UserNotifier do
   alias ToDo.Mailer
   alias ToDo.Accounts.User
 
+  # Sender identity for every outbound mail. Configurable so dev (Swoosh
+  # local adapter) and prod (Resend) can disagree, and so swapping domains
+  # later is one config change rather than a code edit.
+  @default_from {"Orelle", "noreply@orelle.app"}
+
   # Delivers the email using the application mailer.
   defp deliver(recipient, subject, body) do
     email =
       new()
       |> to(recipient)
-      |> from({"ToDo", "contact@example.com"})
+      |> from(Application.get_env(:to_do, :mail_from, @default_from))
       |> subject(subject)
       |> text_body(body)
 
-    with {:ok, _metadata} <- Mailer.deliver(email) do
-      {:ok, email}
+    case Mailer.deliver(email) do
+      {:ok, _metadata} ->
+        {:ok, email}
+
+      {:error, reason} ->
+        # Swoosh already logs the API response, but surface the failure as a
+        # warning here so a "no email arrived" investigation can grep `flyctl
+        # logs` for `[warning]` and find it without diving into Swoosh internals.
+        require Logger
+        Logger.warning("[UserNotifier] delivery failed: #{inspect(reason)}")
+        {:error, reason}
     end
   end
 
