@@ -932,21 +932,20 @@ defmodule ToDoWeb.BoardLive.Show do
       </.form_modal>
 
       <div class="space-y-4">
-        <div class="pb-8 pr-4 sm:pr-6">
+        <div class="pb-8">
           <%!--
-            `pr-4 sm:pr-6` mirrors the shell's `<main>` padding so the
-            rightmost column has the same gap to the viewport edge as the
-            leftmost has to the sidebar. Without this, horizontal scroll
-            content overflows past `<main>`'s padding-right (a long-standing
-            browser quirk for scroll containers), and the rightmost column
-            sits flush against the viewport edge.
+            `pr-4 sm:pr-6` lives ON the `min-w-max` flex (not on its parent)
+            so the trailing padding is part of the flex container's intrinsic
+            width. With the padding on the parent, the inner flex overflows
+            past it and the rightmost column ends up flush against the
+            viewport on horizontal scroll.
           --%>
           <div
             id={"board-#{@board.id}-groups"}
             phx-hook={@can_edit? && "SortableCategories"}
             data-sort-scope="board"
             data-sort-scope-id={@board.id}
-            class="flex gap-6 items-start min-w-max"
+            class="flex gap-6 items-start min-w-max pr-4 sm:pr-6"
           >
             <div
               :for={group <- visible_groups(@board.groups, @filter_group_id)}
