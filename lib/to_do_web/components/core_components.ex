@@ -102,19 +102,26 @@ defmodule ToDoWeb.CoreComponents do
 
   def form_modal(assigns) do
     ~H"""
-    <div class="fixed inset-0 z-50 bg-base-content/40 backdrop-blur-sm flex items-start justify-center pt-24 px-4">
+    <%!-- Backdrop: less top padding on mobile so the modal doesn't eat the
+         viewport, more on desktop for visual breathing room. --%>
+    <div class="fixed inset-0 z-50 bg-base-content/40 backdrop-blur-sm flex items-start justify-center pt-6 sm:pt-24 px-3 sm:px-4">
+      <%!-- Box: caps height so tall content (e.g. new-task with repeat
+           options) scrolls inside the modal rather than off the bottom of
+           the phone. `overflow-hidden` clips the rounded corners; the
+           inner padding-block is the actual scroll area. --%>
       <div
         id={@id}
         class={[
-          "bg-base-100 rounded-xl shadow-xl border border-base-300 w-full overflow-hidden",
+          "bg-base-100 rounded-xl shadow-xl border border-base-300 w-full overflow-hidden flex flex-col",
+          "max-h-[calc(100vh-3rem)] sm:max-h-[calc(100vh-7rem)]",
           @max_width
         ]}
         phx-click-away={@on_cancel}
         phx-key="escape"
         phx-window-keydown={@on_cancel}
       >
-        <div :if={@accent_color} class="h-2" style={"background:#{@accent_color}"}></div>
-        <div class="p-6">
+        <div :if={@accent_color} class="h-2 shrink-0" style={"background:#{@accent_color}"}></div>
+        <div class="p-4 sm:p-6 overflow-y-auto">
           <div class="flex items-center justify-between mb-5">
             <h2 class="text-lg font-semibold">{@title}</h2>
             <button
