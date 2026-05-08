@@ -2,4 +2,23 @@
 set -eu
 
 cd -P -- "$(dirname -- "$0")"
+
+# Wipe the libsql embedded-replica file before boot.
+#
+# Why: libsql's embedded replica caches schema lazily. After a Turso primary
+# gets a schema change (e.g. a `release_command` migration on deploy), an
+# existing replica file on this machine continues serving the old schema
+# until the adapter does a full sync — which it doesn't always do
+# automatically. The symptom is `SQLite failure: 'no such column: ...'`
+# errors after a migration that was successfully applied to Turso.
+#
+# Wiping the file is safe: it's just a read-through cache backed by the
+# Turso primary, which has the source of truth. The libsql adapter
+# rebuilds it from the primary on the first connection.
+#
+# Costs ~1s on cold boot. No impact on warm boots since /tmp survives the
+# BEAM process lifecycle, just not the underlying machine restart.
+REPLICA_PATH="${REPLICA_PATH:-/tmp/to_do.db}"
+rm -f "$REPLICA_PATH" "$REPLICA_PATH-shm" "$REPLICA_PATH-wal" "$REPLICA_PATH-info"
+
 PHX_SERVER=true exec ./to_do start
