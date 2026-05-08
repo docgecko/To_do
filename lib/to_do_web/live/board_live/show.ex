@@ -37,7 +37,15 @@ defmodule ToDoWeb.BoardLive.Show do
         v -> String.to_integer(v)
       end
 
-    socket = assign(socket, :filter_group_id, filter)
+    socket =
+      socket
+      |> assign(:filter_group_id, filter)
+      # Capture an optional return_to. When set (e.g. by smart-list "+ Add task"
+      # links), close_modal/1 navigates here instead of leaving the user
+      # stranded on the board's All tab. Keep this on the socket only — the
+      # URL is stripped once the modal opens.
+      |> assign_new(:return_to, fn -> nil end)
+      |> maybe_set_return_to(params["return_to"])
 
     cond do
       params["edit"] not in [nil, ""] ->
@@ -50,6 +58,17 @@ defmodule ToDoWeb.BoardLive.Show do
         {:noreply, socket}
     end
   end
+
+  # Only accept internal paths to prevent the URL param from being abused as
+  # an open redirect. `//host/...` would be cross-origin, `https://...` likewise.
+  defp maybe_set_return_to(socket, nil), do: socket
+  defp maybe_set_return_to(socket, ""), do: socket
+
+  defp maybe_set_return_to(socket, "/" <> rest = path) when is_binary(path) do
+    if String.starts_with?(rest, "/"), do: socket, else: assign(socket, :return_to, path)
+  end
+
+  defp maybe_set_return_to(socket, _), do: socket
 
   # Drives both ?edit=… and ?new=… deep-links. The smart-list views
   # navigate to `/boards/<id>?new=task:<column-id>` for their per-column
@@ -554,10 +573,24 @@ defmodule ToDoWeb.BoardLive.Show do
   end
 
   defp close_modal(socket) do
-    socket
-    |> assign(:modal, nil)
-    |> assign(:form_params, %{})
-    |> assign(:form, nil)
+    socket =
+      socket
+      |> assign(:modal, nil)
+      |> assign(:form_params, %{})
+      |> assign(:form, nil)
+
+    # If we got here from a smart-list deep link (`?return_to=/today`),
+    # navigate the user back. Clear the assign so subsequent in-board
+    # close_modal calls don't bounce them away unexpectedly.
+    case socket.assigns[:return_to] do
+      nil ->
+        socket
+
+      path ->
+        socket
+        |> assign(:return_to, nil)
+        |> push_navigate(to: path)
+    end
   end
 
   defp modal_subject(%{assigns: %{modal: %{subject: subject}}}), do: subject

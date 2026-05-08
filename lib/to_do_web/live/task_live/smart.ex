@@ -124,6 +124,11 @@ defmodule ToDoWeb.TaskLive.Smart do
   defp view_href(scope, :list), do: "/#{scope}"
   defp view_href(scope, :board), do: "/#{scope}?view=board"
 
+  # Where the board view should push_navigate back to after closing a modal
+  # opened from this LV. Maps the smart-list scope atom to its URL path.
+  defp return_path(scope) when scope in [:today, :upcoming, :anytime, :waiting], do: "/#{scope}"
+  defp return_path(_), do: "/today"
+
   # Header chips: show every board whose tasks appear in the current smart list.
   # If the list is empty, fall back to the user's primary (sidebar) board so the
   # header still gives a sense of board context.
@@ -390,8 +395,12 @@ defmodule ToDoWeb.TaskLive.Smart do
                         </li>
                       </ul>
                       <div :if={@scope in [:today, :upcoming, :anytime, :waiting]} class="p-2 border-t border-base-300">
+                        <%!-- `return_to` tells the board LV where to push_navigate when the
+                             modal closes (cancel or save), so the user lands back on the
+                             smart-list view they came from rather than stuck on the board's
+                             All tab. --%>
                         <.link
-                          navigate={~p"/boards/#{b.board.id}?new=task:#{col.category.id}"}
+                          navigate={~p"/boards/#{b.board.id}?new=task:#{col.category.id}&return_to=#{return_path(@scope)}"}
                           class="btn btn-ghost btn-xs w-full justify-start"
                         >
                           + Add task
