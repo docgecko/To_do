@@ -932,7 +932,15 @@ defmodule ToDoWeb.BoardLive.Show do
       </.form_modal>
 
       <div class="space-y-4">
-        <div class="pb-8">
+        <div class="pb-8 pr-4 sm:pr-6">
+          <%!--
+            `pr-4 sm:pr-6` mirrors the shell's `<main>` padding so the
+            rightmost column has the same gap to the viewport edge as the
+            leftmost has to the sidebar. Without this, horizontal scroll
+            content overflows past `<main>`'s padding-right (a long-standing
+            browser quirk for scroll containers), and the rightmost column
+            sits flush against the viewport edge.
+          --%>
           <div
             id={"board-#{@board.id}-groups"}
             phx-hook={@can_edit? && "SortableCategories"}

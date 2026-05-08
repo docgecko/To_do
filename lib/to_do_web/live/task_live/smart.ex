@@ -275,7 +275,10 @@ defmodule ToDoWeb.TaskLive.Smart do
 
         <div :if={@view == :board and @rows != []} class="space-y-8">
           <section :for={b <- @grouped} class="space-y-3">
-            <div class="pb-4">
+            <div class="pb-4 pr-4 sm:pr-6">
+              <%!-- See note in board_live/show.ex: explicit right-padding so
+                   the rightmost column doesn't sit flush against the viewport
+                   edge when the row overflows. --%>
               <div class="flex gap-6 items-start min-w-max">
                 <div :for={grp <- b.groups} class="flex flex-col gap-2">
                   <.link
