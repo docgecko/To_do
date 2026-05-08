@@ -39,26 +39,39 @@ defmodule ToDoWeb.BoardLive.Show do
 
     socket = assign(socket, :filter_group_id, filter)
 
-    case params["edit"] do
-      nil -> {:noreply, socket}
-      "" -> {:noreply, socket}
-      target -> {:noreply, handle_edit_param(socket, target)}
+    cond do
+      params["edit"] not in [nil, ""] ->
+        {:noreply, handle_modal_param(socket, :edit, params["edit"])}
+
+      params["new"] not in [nil, ""] ->
+        {:noreply, handle_modal_param(socket, :new, params["new"])}
+
+      true ->
+        {:noreply, socket}
     end
   end
 
-  defp handle_edit_param(socket, target) do
-    socket = open_modal_from_target(socket, target)
-
-    # Strip the ?edit=… so refreshes don't re-open and the URL stays clean.
-    qs =
-      socket.assigns
-      |> Map.take([:filter_group_id])
-      |> case do
-        %{filter_group_id: nil} -> ""
-        %{filter_group_id: id} -> "?group=#{id}"
+  # Drives both ?edit=… and ?new=… deep-links. The smart-list views
+  # navigate to `/boards/<id>?new=task:<column-id>` for their per-column
+  # "+ Add task" buttons; without a `:new` clause we'd silently drop the
+  # param and the user lands on the All view with no modal.
+  defp handle_modal_param(socket, kind, target) do
+    socket =
+      case kind do
+        :edit -> open_modal_from_target(socket, target)
+        :new -> open_new_modal_from_target(socket, target)
       end
 
-    push_patch(socket, to: ~p"/boards/#{socket.assigns.board.id}" <> qs, replace: true)
+    push_patch(socket, to: ~p"/boards/#{socket.assigns.board.id}" <> filter_qs(socket), replace: true)
+  end
+
+  # Strip the ?edit=… / ?new=… so refreshes don't re-open and the URL stays
+  # clean. Preserve the active group filter if any.
+  defp filter_qs(socket) do
+    case socket.assigns[:filter_group_id] do
+      nil -> ""
+      id -> "?group=#{id}"
+    end
   end
 
   defp open_modal_from_target(socket, target) do
@@ -72,6 +85,49 @@ defmodule ToDoWeb.BoardLive.Show do
         _ -> socket
       end
     end
+  end
+
+  defp open_new_modal_from_target(socket, target) do
+    if not socket.assigns.can_edit? do
+      put_flash(socket, :info, "You only have view access to this board.")
+    else
+      case String.split(target, ":", parts: 2) do
+        ["task", id] -> try_open(socket, &maybe_open_new_task/2, id)
+        _ -> socket
+      end
+    end
+  end
+
+  defp maybe_open_new_task(socket, cid) do
+    category = Boards.get_category!(cid)
+
+    if category.board_id == socket.assigns.board.id do
+      open_new_task_modal(socket, cid)
+    else
+      # Category belongs to a different board (or doesn't exist on this one)
+      # — silently no-op rather than open the modal with cross-board context.
+      socket
+    end
+  end
+
+  # Shared between the in-board "+ Add task" button (handle_event) and the
+  # smart-list deep-link `?new=task:<cid>` (handle_params).
+  defp open_new_task_modal(socket, cid) when is_integer(cid) do
+    params = %{
+      "title" => "",
+      "notes" => "",
+      "due_at" => "",
+      "repeat" => "",
+      "repeat_every" => "1",
+      "repeat_until" => "",
+      "waiting" => "false",
+      "category_id" => Integer.to_string(cid)
+    }
+
+    socket
+    |> assign(:modal, %{kind: :task, mode: :new, category_id: cid})
+    |> assign(:form_params, params)
+    |> assign(:form, to_form(Task.changeset(%Task{}, params)))
   end
 
   defp try_open(socket, fun, id) do
@@ -263,23 +319,7 @@ defmodule ToDoWeb.BoardLive.Show do
 
   def handle_event("show_new_task", %{"category_id" => cid}, socket) do
     require_edit!(socket)
-
-    params = %{
-      "title" => "",
-      "notes" => "",
-      "due_at" => "",
-      "repeat" => "",
-      "repeat_every" => "1",
-      "repeat_until" => "",
-      "waiting" => "false",
-      "category_id" => cid
-    }
-
-    {:noreply,
-     socket
-     |> assign(:modal, %{kind: :task, mode: :new, category_id: String.to_integer(cid)})
-     |> assign(:form_params, params)
-     |> assign(:form, to_form(Task.changeset(%Task{}, params)))}
+    {:noreply, open_new_task_modal(socket, String.to_integer(cid))}
   end
 
   def handle_event("edit_task", %{"id" => id}, socket) do
