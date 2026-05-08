@@ -88,58 +88,30 @@ defmodule ToDoWeb.Layouts do
 
   def shell(assigns) do
     ~H"""
-    <div class="flex min-h-screen bg-base-100">
-      <aside class="w-60 shrink-0 border-r border-base-300 flex flex-col bg-base-200/40 sticky top-0 h-screen">
-        <div class="h-14 shrink-0 px-4 border-b border-base-300 flex items-center gap-2">
-          <img src={~p"/images/logo.svg"} width="24" class="shrink-0" />
-          <span class="font-semibold truncate">Orelle</span>
-        </div>
-        <nav class="flex-1 overflow-y-auto p-3 space-y-6">
-          <div class="space-y-1">
-            <.nav_item href={~p"/today"} label="Today" icon="hero-sun" active={@active == :today} />
-            <.nav_item href={~p"/upcoming"} label="Upcoming" icon="hero-calendar-days" active={@active == :upcoming} />
-            <.nav_item href={~p"/anytime"} label="Anytime" icon="hero-inbox" active={@active == :anytime} />
-            <.nav_item href={~p"/waiting"} label="Waiting" icon="hero-clock" active={@active == :waiting} />
-            <.nav_item href={~p"/completed"} label="Completed" icon="hero-check-circle" active={@active == :completed} />
-            <.nav_item href={~p"/trash"} label="Trash" icon="hero-trash" active={@active == :trash} />
-          </div>
-          <div :if={@current_board} class="space-y-1">
-            <div class="px-2 text-xs font-semibold uppercase tracking-wide text-base-content/60">
-              Board: {@current_board.name}
-            </div>
-            <.nav_item
-              href={~p"/boards/#{@current_board.id}"}
-              label="All"
-              icon="hero-squares-2x2"
-              active={@active == :board and is_nil(@current_group_id)}
-              patch
-            />
-            <.nav_item
-              :for={g <- (Map.get(@current_board, :groups) || [])}
-              href={~p"/boards/#{@current_board.id}?group=#{g.id}"}
-              label={g.name}
-              icon="hero-folder"
-              active={@active == :board and @current_group_id == g.id}
-              patch
-            />
-          </div>
-        </nav>
-        <div class="p-3 border-t border-base-300">
-          <.link navigate={~p"/boards"} class="btn btn-ghost btn-sm w-full justify-start">
-            <.icon name="hero-rectangle-stack" class="size-4" />
-            <span>Switch boards</span>
-          </.link>
-        </div>
-      </aside>
-      <div class="flex-1 flex flex-col min-w-0">
-        <header class="h-14 shrink-0 border-b border-base-300 px-4 sm:px-6 flex items-center justify-between gap-4">
-          <div class="flex items-center gap-3 min-w-0">
-            <h1 :if={@page_title} class="text-lg font-semibold truncate">{@page_title}</h1>
+    <%!-- DaisyUI drawer: sidebar slides out on `< md`, always-on at `md+`.
+         The hidden checkbox is the toggle target — labels on the hamburger
+         and on the backdrop both flip it. No JS needed. --%>
+    <div class="drawer md:drawer-open min-h-screen bg-base-100">
+      <input id="orelle-sidebar-drawer" type="checkbox" class="drawer-toggle" />
+
+      <%!-- Main content side --%>
+      <div class="drawer-content flex flex-col min-w-0 min-h-screen">
+        <header class="h-14 shrink-0 border-b border-base-300 px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4">
+          <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+            <%!-- Hamburger — only on small screens. Opens the drawer. --%>
+            <label
+              for="orelle-sidebar-drawer"
+              class="btn btn-ghost btn-sm md:hidden -ml-1"
+              aria-label="Open menu"
+            >
+              <.icon name="hero-bars-3" class="size-5" />
+            </label>
+            <h1 :if={@page_title} class="text-base sm:text-lg font-semibold truncate">{@page_title}</h1>
             <span :if={@title_extra != []} class="flex items-center gap-2 min-w-0">
               {render_slot(@title_extra)}
             </span>
           </div>
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-2 sm:gap-3">
             {render_slot(@actions)}
             <.notifications_bell
               :if={@current_scope && @current_scope.user}
@@ -149,10 +121,60 @@ defmodule ToDoWeb.Layouts do
             <.user_menu current_scope={@current_scope} />
           </div>
         </header>
-        <main class="flex-1 overflow-auto p-4 sm:p-6">
+        <main class="flex-1 overflow-auto p-3 sm:p-6">
           {render_slot(@inner_block)}
         </main>
       </div>
+
+      <%!-- Drawer side (sidebar) --%>
+      <div class="drawer-side z-30">
+        <%!-- Backdrop click closes the drawer (only present on `< md`,
+             where md:drawer-open isn't pinning it open). --%>
+        <label for="orelle-sidebar-drawer" aria-label="Close menu" class="drawer-overlay"></label>
+        <aside class="w-64 shrink-0 border-r border-base-300 flex flex-col bg-base-200/40 h-screen">
+          <div class="h-14 shrink-0 px-4 border-b border-base-300 flex items-center gap-2">
+            <img src={~p"/images/logo.svg"} width="24" class="shrink-0" />
+            <span class="font-semibold truncate">Orelle</span>
+          </div>
+          <nav class="flex-1 overflow-y-auto p-3 space-y-6">
+            <div class="space-y-1">
+              <.nav_item href={~p"/today"} label="Today" icon="hero-sun" active={@active == :today} />
+              <.nav_item href={~p"/upcoming"} label="Upcoming" icon="hero-calendar-days" active={@active == :upcoming} />
+              <.nav_item href={~p"/anytime"} label="Anytime" icon="hero-inbox" active={@active == :anytime} />
+              <.nav_item href={~p"/waiting"} label="Waiting" icon="hero-clock" active={@active == :waiting} />
+              <.nav_item href={~p"/completed"} label="Completed" icon="hero-check-circle" active={@active == :completed} />
+              <.nav_item href={~p"/trash"} label="Trash" icon="hero-trash" active={@active == :trash} />
+            </div>
+            <div :if={@current_board} class="space-y-1">
+              <div class="px-2 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+                Board: {@current_board.name}
+              </div>
+              <.nav_item
+                href={~p"/boards/#{@current_board.id}"}
+                label="All"
+                icon="hero-squares-2x2"
+                active={@active == :board and is_nil(@current_group_id)}
+                patch
+              />
+              <.nav_item
+                :for={g <- (Map.get(@current_board, :groups) || [])}
+                href={~p"/boards/#{@current_board.id}?group=#{g.id}"}
+                label={g.name}
+                icon="hero-folder"
+                active={@active == :board and @current_group_id == g.id}
+                patch
+              />
+            </div>
+          </nav>
+          <div class="p-3 border-t border-base-300">
+            <.link navigate={~p"/boards"} class="btn btn-ghost btn-sm w-full justify-start">
+              <.icon name="hero-rectangle-stack" class="size-4" />
+              <span>Switch boards</span>
+            </.link>
+          </div>
+        </aside>
+      </div>
+
       <.flash_group flash={@flash} />
     </div>
     """
