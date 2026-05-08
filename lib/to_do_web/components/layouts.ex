@@ -131,7 +131,7 @@ defmodule ToDoWeb.Layouts do
         <%!-- Backdrop click closes the drawer (only present on `< md`,
              where md:drawer-open isn't pinning it open). --%>
         <label for="orelle-sidebar-drawer" aria-label="Close menu" class="drawer-overlay"></label>
-        <aside class="w-64 shrink-0 border-r border-base-300 flex flex-col bg-base-200/40 h-screen">
+        <aside class="w-64 shrink-0 border-r border-base-300 flex flex-col bg-base-200 h-screen">
           <div class="h-14 shrink-0 px-4 border-b border-base-300 flex items-center gap-2">
             <img src={~p"/images/logo.svg"} width="24" class="shrink-0" />
             <span class="font-semibold truncate">Orelle</span>
