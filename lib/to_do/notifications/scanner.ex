@@ -104,8 +104,8 @@ defmodule ToDo.Notifications.Scanner do
     due_soon_tasks = candidate_tasks(now, soon_cutoff, :due_soon)
     overdue_tasks = candidate_tasks(now, soon_cutoff, :overdue)
 
-    due_count = Enum.reduce(due_soon_tasks, 0, &emit_for_task(&1, "task_due_soon", &2))
-    over_count = Enum.reduce(overdue_tasks, 0, &emit_for_task(&1, "task_overdue", &2))
+    due_count = emit_batch(due_soon_tasks, "task_due_soon")
+    over_count = emit_batch(overdue_tasks, "task_overdue")
 
     if due_count > 0 or over_count > 0 do
       Logger.info(
@@ -139,14 +139,52 @@ defmodule ToDo.Notifications.Scanner do
     |> Repo.all()
   end
 
-  defp emit_for_task(%{id: task_id, title: title, due_at: due_at, board_id: board_id, owner_id: owner_id}, kind, acc) do
+  # Emit notifications for every task in the batch.
+  #
+  # Earlier this was an N+1: per-task, two separate `WHERE x_id = ?` queries
+  # to load task_shares and board_shares. With 20 tasks in a tick that's 40
+  # round-trips just to figure out who to notify. Now we make two queries
+  # total: one `WHERE task_id IN (...)` and one `WHERE board_id IN (...)`,
+  # group the results by their parent id in Elixir, and look up by id.
+  defp emit_batch([], _kind), do: 0
+
+  defp emit_batch(tasks, kind) do
+    task_ids = Enum.map(tasks, & &1.id)
+    board_ids = tasks |> Enum.map(& &1.board_id) |> Enum.uniq()
+
+    task_shares = group_shares_by_parent(TaskShare, :task_id, task_ids)
+    board_shares = group_shares_by_parent(BoardShare, :board_id, board_ids)
+
+    Enum.reduce(tasks, 0, fn task, acc ->
+      acc + emit_for_task(task, kind, task_shares, board_shares)
+    end)
+  end
+
+  # Returns %{parent_id => [user_id, ...]} for the given table and FK column.
+  defp group_shares_by_parent(_schema, _fk, []), do: %{}
+
+  defp group_shares_by_parent(schema, fk, ids) do
+    from(s in schema,
+      where: field(s, ^fk) in ^ids,
+      select: {field(s, ^fk), s.user_id}
+    )
+    |> Repo.all()
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+  end
+
+  defp emit_for_task(
+         %{id: task_id, title: title, due_at: due_at, board_id: board_id, owner_id: owner_id},
+         kind,
+         task_shares,
+         board_shares
+       ) do
     body = render_body(kind, title, due_at)
 
     user_ids =
-      [owner_id | direct_share_user_ids(task_id) ++ board_share_user_ids(board_id)]
+      [owner_id | Map.get(task_shares, task_id, []) ++ Map.get(board_shares, board_id, [])]
       |> Enum.uniq()
 
-    Enum.reduce(user_ids, acc, fn user_id, acc ->
+    Enum.reduce(user_ids, 0, fn user_id, acc ->
       case Notifications.create_or_skip(%{
              user_id: user_id,
              kind: kind,
@@ -158,14 +196,6 @@ defmodule ToDo.Notifications.Scanner do
         {:error, _} -> acc
       end
     end)
-  end
-
-  defp direct_share_user_ids(task_id) do
-    from(s in TaskShare, where: s.task_id == ^task_id, select: s.user_id) |> Repo.all()
-  end
-
-  defp board_share_user_ids(board_id) do
-    from(s in BoardShare, where: s.board_id == ^board_id, select: s.user_id) |> Repo.all()
   end
 
   # ----- Body rendering -----
