@@ -173,12 +173,11 @@ absolute URLs (in emails, etc.) under the new host.
   (`flyctl ssh console`) and `rm /tmp/to_do.db*`, then redeploy. The
   embedded replica re-syncs from scratch.
 - **`SQLite failure: no such column: ...` after a schema-change deploy**
-  — the long-running app machine's libsql replica is still serving the
-  pre-migration schema. `release_command` applied the migration to the
-  Turso primary, but the replica's WAL hasn't caught up. Recovery:
-  `flyctl machine restart --app orelle`. The machine comes back with a
-  cold connection that pulls the current schema from Turso. (We pinned
-  the machine always-on rather than auto-stop, and removed an earlier
-  boot-time `rm /tmp/to_do.db*` wipe, because they multiplied Turso sync
-  bandwidth — see fly.toml comments. Manual restart on the rare
-  schema-change deploy is the trade-off.)
+  — replica drift. The boot script (rel/overlays/bin/server) already
+  wipes /tmp/to_do.db* before each boot so this shouldn't happen, but if
+  it does, `flyctl machine restart --app orelle` triggers a fresh boot
+  and the wipe + resync.
+- **`Hrana: api error: status=404 ... stream not found`** — Turso
+  recycled the HTTP/2 streams the libsql adapter cached. Tends to happen
+  after several days of uptime. Recovery: `flyctl machine restart --app
+  orelle`. The boot wipe forces a clean reconnect.

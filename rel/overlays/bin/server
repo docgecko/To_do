@@ -3,12 +3,24 @@ set -eu
 
 cd -P -- "$(dirname -- "$0")"
 
-# NOTE: an earlier version of this script unconditionally `rm`-ed
-# /tmp/to_do.db* before boot to recover from libsql replica drift after
-# schema-change deploys. That made every cold boot ship a full DB sync from
-# Turso — which, combined with `auto_stop_machines`, blew through Turso's
-# sync-bandwidth allowance. We removed the wipe and pinned the machine
-# always-on (see fly.toml). If a future schema-change deploy stranded the
-# replica with a stale schema (symptom: `SQLite failure: no such column`),
-# manual recovery is one `flyctl machine restart --app orelle`.
+# Wipe the libsql embedded-replica before boot.
+#
+# Solves two pathologies seen in production:
+#
+# 1. Replica schema drift after schema-change deploys. release_command
+#    applies the migration to the Turso primary, but the running app's
+#    local /tmp/to_do.db keeps the old schema (libsql doesn't pull schema
+#    DDL through its WAL sync). Symptom: `no such column: ...` errors.
+#
+# 2. Hrana stream invalidation after long uptime. Turso recycles the
+#    HTTP/2 streams the libsql adapter cached, but the adapter doesn't
+#    reconnect on the next query. Symptom: `stream not found: ...`.
+#
+# Both fixes are the same: fresh replica = fresh connection = fresh
+# schema. Bandwidth cost is small (~5 MB) because we only do this on
+# actual machine restart (deploy or manual), not on every wake — see
+# auto_stop_machines = "off" in fly.toml.
+REPLICA_PATH="${REPLICA_PATH:-/tmp/to_do.db}"
+rm -f "$REPLICA_PATH" "$REPLICA_PATH-shm" "$REPLICA_PATH-wal" "$REPLICA_PATH-info"
+
 PHX_SERVER=true exec ./to_do start
