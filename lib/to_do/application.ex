@@ -10,6 +10,11 @@ defmodule ToDo.Application do
     children = [
       ToDoWeb.Telemetry,
       ToDo.Repo,
+      # Blocks the rest of the boot until the libsql replica has synced
+      # the latest migration from Turso. Prevents transient
+      # `no such column: ...` errors during the post-deploy sync window.
+      # No-op when TURSO_DATABASE_URL is unset (dev/test).
+      ToDo.Repo.SyncGate,
       {DNSCluster, query: Application.get_env(:to_do, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: ToDo.PubSub},
       ToDo.Notifications.Scanner,
