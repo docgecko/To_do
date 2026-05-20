@@ -19,6 +19,10 @@ defmodule ToDo.Application do
       {Phoenix.PubSub, name: ToDo.PubSub},
       ToDo.Notifications.Scanner,
       ToDo.Notifications.Mailer,
+      # Preemptive self-restart every 12h to dodge libsql Hrana stream
+      # invalidation (Turso silently recycles HTTP/2 streams after ~16-24h
+      # uptime; pool doesn't auto-recover). No-op without TURSO_DATABASE_URL.
+      ToDo.Repo.Keepalive,
       # Start to serve requests, typically the last entry
       ToDoWeb.Endpoint
     ]

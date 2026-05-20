@@ -178,6 +178,8 @@ absolute URLs (in emails, etc.) under the new host.
   it does, `flyctl machine restart --app orelle` triggers a fresh boot
   and the wipe + resync.
 - **`Hrana: api error: status=404 ... stream not found`** — Turso
-  recycled the HTTP/2 streams the libsql adapter cached. Tends to happen
-  after several days of uptime. Recovery: `flyctl machine restart --app
-  orelle`. The boot wipe forces a clean reconnect.
+  recycled the HTTP/2 streams the libsql adapter cached. `ToDo.Repo.Keepalive`
+  preemptively self-restarts every 12h to dodge this, so the symptom
+  shouldn't appear in steady state. If it does (e.g. after a config
+  change that paused the keepalive), recovery is `flyctl machine
+  restart --app orelle` — boot wipe forces a clean reconnect.

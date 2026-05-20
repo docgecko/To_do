@@ -39,4 +39,8 @@ config :phoenix_live_view,
 # Don't run the notifications scanner in tests; tests that need it can call
 # `ToDo.Notifications.Scanner.scan_now/0` explicitly.
 config :to_do, ToDo.Notifications.Scanner, interval_ms: :disabled
+
+# Don't run the libsql keepalive in tests (no Turso, no need; and
+# `System.halt/0` would obviously be catastrophic mid-test).
+config :to_do, ToDo.Repo.Keepalive, interval_ms: :disabled
 config :to_do, ToDo.Notifications.Mailer, interval_ms: :disabled
