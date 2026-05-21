@@ -1,0 +1,44 @@
+name: Daily machine restart (libsql replica refresh)
+
+# Restarts the Fly machine once a day at a quiet hour. The boot script wipes
+# /tmp/to_do.db* and the libsql adapter re-syncs from Turso on the next
+# connection. This keeps the Hrana streams under Turso's invalidation
+# threshold (we've observed ~24-36h before they're recycled server-side
+# and `ecto_libsql` 0.9 doesn't reconnect automatically).
+#
+# Cost: ~30 seconds of downtime per day. SyncGate makes the new boot
+# sync-clean before the Endpoint accepts traffic.
+#
+# Manual trigger also available via the Actions tab → Run workflow.
+
+on:
+  schedule:
+    # 03:00 UTC daily = 03:00 GMT (winter) / 04:00 BST (summer).
+    # Both within the 02:00-05:00 quiet window for UK users.
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+# Don't pile up restarts if a previous run is still going. Latest wins.
+concurrency:
+  group: daily-restart
+  cancel-in-progress: false
+
+jobs:
+  restart:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Install flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Restart the orelle app machine(s)
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          # Discover machines dynamically — works for both single-machine
+          # and future multi-machine setups. Skips the confirmation prompt.
+          for id in $(flyctl machine list --app orelle --json | jq -r '.[].id'); do
+            echo "Restarting machine $id..."
+            flyctl machine restart "$id" --app orelle --skip-health-checks=false
+          done
