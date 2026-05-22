@@ -29,9 +29,13 @@ if config_env() == :prod do
       For example: postgres://USER:PASS@HOST/DATABASE
       """
 
+  # Fly's `.flycast` and `.internal` hostnames are IPv6-only — without
+  # `:inet6` in socket_options, Erlang's resolver tries IPv4 first and
+  # bails with :nxdomain.
   config :to_do, ToDo.Repo,
     url: database_url,
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
+    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
+    socket_options: [:inet6]
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
