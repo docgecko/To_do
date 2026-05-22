@@ -21,29 +21,17 @@ if System.get_env("PHX_SERVER") do
 end
 
 if config_env() == :prod do
-  # Local libsql DB file (also serves as the embedded-replica when paired
-  # with Turso). On Fly.io point this at a persistent volume (e.g.
-  # `/data/to_do.db`).
-  replica_path = System.get_env("REPLICA_PATH") || "/data/to_do.db"
+  # Postgres connection URL set as a Fly secret by `flyctl postgres attach`.
+  database_url =
+    System.get_env("DATABASE_URL") ||
+      raise """
+      environment variable DATABASE_URL is missing.
+      For example: postgres://USER:PASS@HOST/DATABASE
+      """
 
-  # Optional Turso config — when both env vars are set, the libsql adapter
-  # turns on automatic sync between the local replica and the Turso primary.
-  turso_url = System.get_env("TURSO_DATABASE_URL")
-  turso_token = System.get_env("TURSO_AUTH_TOKEN")
-
-  base_repo_config = [
-    database: replica_path,
+  config :to_do, ToDo.Repo,
+    url: database_url,
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
-  ]
-
-  repo_config =
-    if turso_url && turso_token do
-      base_repo_config ++ [uri: turso_url, auth_token: turso_token, sync: true]
-    else
-      base_repo_config
-    end
-
-  config :to_do, ToDo.Repo, repo_config
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you

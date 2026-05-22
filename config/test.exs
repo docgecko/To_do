@@ -9,7 +9,10 @@ config :bcrypt_elixir, :log_rounds, 1
 # to provide built-in test partitioning in CI environment.
 # Run `mix help test` for more information.
 config :to_do, ToDo.Repo,
-  database: Path.expand("../priv/data/to_do_test#{System.get_env("MIX_TEST_PARTITION")}.db", __DIR__),
+  username: System.get_env("USER") || "postgres",
+  password: System.get_env("PGPASSWORD") || "",
+  hostname: "localhost",
+  database: "to_do_test#{System.get_env("MIX_TEST_PARTITION")}",
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 2
 
@@ -36,11 +39,7 @@ config :phoenix, :plug_init_mode, :runtime
 config :phoenix_live_view,
   enable_expensive_runtime_checks: true
 
-# Don't run the notifications scanner in tests; tests that need it can call
-# `ToDo.Notifications.Scanner.scan_now/0` explicitly.
+# Don't run the notifications scanner / mailer in tests; tests that need
+# them can call `ToDo.Notifications.Scanner.scan_now/0` explicitly.
 config :to_do, ToDo.Notifications.Scanner, interval_ms: :disabled
-
-# Don't run the libsql keepalive in tests (no Turso, no need; and
-# `System.halt/0` would obviously be catastrophic mid-test).
-config :to_do, ToDo.Repo.Keepalive, interval_ms: :disabled
 config :to_do, ToDo.Notifications.Mailer, interval_ms: :disabled

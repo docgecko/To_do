@@ -2,14 +2,10 @@ defmodule ToDo.Repo.Migrations.CreateUsersAuthTables do
   use Ecto.Migration
 
   def change do
-    if repo().__adapter__() == Ecto.Adapters.Postgres do
-      execute "CREATE EXTENSION IF NOT EXISTS citext", ""
-    end
-
-    email_type = if repo().__adapter__() == Ecto.Adapters.Postgres, do: :citext, else: :string
+    execute "CREATE EXTENSION IF NOT EXISTS citext", ""
 
     create table(:users) do
-      add :email, email_type, null: false
+      add :email, :citext, null: false
       add :hashed_password, :string
       add :confirmed_at, :utc_datetime
 

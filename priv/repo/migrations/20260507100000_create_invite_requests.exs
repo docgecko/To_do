@@ -4,7 +4,10 @@ defmodule ToDo.Repo.Migrations.CreateInviteRequests do
   def change do
     create table(:invite_requests) do
       add :email, :string, null: false
-      add :message, :string
+      # `:text` (not `:string`) so longer free-form messages from prospects
+      # (and the occasional spammer's full pitch) aren't rejected by the
+      # 255-char varchar cap.
+      add :message, :text
       add :status, :string, null: false, default: "pending"
       add :decided_at, :utc_datetime
       add :decided_by_id, references(:users, on_delete: :nilify_all)
