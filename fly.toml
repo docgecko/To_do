@@ -11,7 +11,11 @@ primary_region = "lhr"
 [build]
 
 [deploy]
-  release_command = "/app/bin/migrate"
+  # release_command is intentionally not set. The Fly release-machine boots
+  # faster than Fly's internal IPv6 networking, so Postgrex consistently
+  # fails to reach orelle-db on first attempt. Migrations are run manually
+  # via `flyctl ssh console -a orelle --command "/app/bin/migrate"` after
+  # any deploy that adds new ones. Most deploys add no migrations.
 
 [env]
   PHX_HOST = "orelle.app"
