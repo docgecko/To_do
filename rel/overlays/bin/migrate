@@ -2,4 +2,30 @@
 set -eu
 
 cd -P -- "$(dirname -- "$0")"
+
+# Wait for Fly's internal DNS to come up before invoking the migrator.
+# Without this, the release_command machine often boots faster than Fly's
+# .flycast / .internal DNS service, and Postgrex fails fast with nxdomain
+# trying to reach orelle-db.internal:5432 — aborting the entire deploy.
+#
+# Extract the DB hostname from DATABASE_URL, then poll getent until it
+# resolves (or we hit the timeout). Costs at most ~10s on a slow boot,
+# zero on a fast one.
+if [ -n "${DATABASE_URL:-}" ]; then
+  DB_HOST=$(echo "$DATABASE_URL" | sed -E 's|.*://[^@]*@([^:/]+).*|\1|')
+  if [ -n "$DB_HOST" ] && [ "$DB_HOST" != "$DATABASE_URL" ]; then
+    echo "Waiting for DNS to resolve $DB_HOST..."
+    for i in $(seq 1 30); do
+      if getent hosts "$DB_HOST" > /dev/null 2>&1; then
+        echo "  resolved after ${i}s"
+        break
+      fi
+      sleep 1
+      if [ "$i" -eq 30 ]; then
+        echo "  timed out after 30s — proceeding anyway"
+      fi
+    done
+  fi
+fi
+
 exec ./to_do eval ToDo.Release.migrate
