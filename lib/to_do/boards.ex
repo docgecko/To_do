@@ -13,7 +13,7 @@ defmodule ToDo.Boards do
   alias ToDo.Repo
   alias ToDo.Accounts
   alias ToDo.Accounts.User
-  alias ToDo.Boards.{Board, BoardShare, Category, Invitation, Task, TaskShare}
+  alias ToDo.Boards.{Board, BoardShare, Category, Invitation, Task, TaskListPosition, TaskShare}
 
   # -- Boards CRUD --
 
@@ -299,7 +299,11 @@ defmodule ToDo.Boards do
   def list_smart_tasks(user_id, scope) do
     now = DateTime.utc_now()
     end_of_today = DateTime.new!(Date.utc_today(), ~T[23:59:59], "Etc/UTC")
+    scope_str = to_string(scope)
 
+    # Left-join the per-user list-position table so the LIST view can
+    # honour manual reordering (where set) and fall through to the
+    # scope's natural chronological order otherwise.
     base =
       from(t in Task,
         join: c in Category, on: c.id == t.category_id,
@@ -307,15 +311,17 @@ defmodule ToDo.Boards do
         left_join: g in Category, on: g.id == c.parent_id,
         left_join: bs in BoardShare, on: bs.board_id == b.id and bs.user_id == ^user_id,
         left_join: ts in TaskShare, on: ts.task_id == t.id and ts.user_id == ^user_id,
+        left_join: tlp in TaskListPosition,
+          on: tlp.task_id == t.id and tlp.user_id == ^user_id and tlp.scope == ^scope_str,
         where: b.owner_id == ^user_id or not is_nil(bs.id) or not is_nil(ts.id),
-        select: %{task: t, board: b, category: c, group: g}
+        select: %{task: t, board: b, category: c, group: g, list_position: tlp.position}
       )
 
     base =
       if scope == :trash do
         base
       else
-        from [t, _c, _b, _g, _bs, _ts] in base, where: is_nil(t.deleted_at)
+        from [t, _c, _b, _g, _bs, _ts, _tlp] in base, where: is_nil(t.deleted_at)
       end
 
     base
@@ -323,41 +329,95 @@ defmodule ToDo.Boards do
     |> Repo.all()
   end
 
+  @doc """
+  Rewrite the user's list-view order for `scope` from `ordered_task_ids`.
+  Each task in the list is assigned a sequential position starting at 1;
+  tasks not in the list are left untouched (their existing TLP row is
+  preserved so navigating away and back doesn't lose state).
+
+  Idempotent. Safe to call with a stable order — nothing changes.
+  """
+  def reorder_list_tasks(user_id, scope, ordered_task_ids)
+      when is_integer(user_id) and is_list(ordered_task_ids) do
+    scope_str = to_string(scope)
+
+    unless scope_str in TaskListPosition.scopes() do
+      raise ArgumentError, "scope must be one of #{inspect(TaskListPosition.scopes())}"
+    end
+
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    entries =
+      ordered_task_ids
+      |> Enum.with_index(1)
+      |> Enum.map(fn {task_id, pos} ->
+        %{
+          user_id: user_id,
+          task_id: to_int(task_id),
+          scope: scope_str,
+          position: pos,
+          inserted_at: now,
+          updated_at: now
+        }
+      end)
+
+    case entries do
+      [] ->
+        {:ok, 0}
+
+      _ ->
+        {count, _} =
+          Repo.insert_all(TaskListPosition, entries,
+            on_conflict: {:replace, [:position, :updated_at]},
+            conflict_target: [:user_id, :task_id, :scope]
+          )
+
+        {:ok, count}
+    end
+  end
+
+  defp to_int(n) when is_integer(n), do: n
+  defp to_int(n) when is_binary(n), do: String.to_integer(n)
+
+  # Each scope's order_by puts manual list_position (if set) first, then
+  # falls through to a sensible chronological default. `asc_nulls_last`
+  # means tasks the user has NOT manually dragged still appear in date
+  # order behind the ones they have.
   defp apply_smart_filter(q, :today, _now, eod) do
-    from [t, _c, _b, _g, _bs, _ts] in q,
+    from [t, _c, _b, _g, _bs, _ts, tlp] in q,
       where: t.done == false and not is_nil(t.due_at) and t.due_at <= ^eod,
-      order_by: [asc: t.due_at, asc: t.position]
+      order_by: [asc_nulls_last: tlp.position, asc: t.due_at, asc: t.position]
   end
 
   defp apply_smart_filter(q, :upcoming, _now, eod) do
-    from [t, _c, _b, _g, _bs, _ts] in q,
+    from [t, _c, _b, _g, _bs, _ts, tlp] in q,
       where: t.done == false and not is_nil(t.due_at) and t.due_at > ^eod,
-      order_by: [asc: t.due_at, asc: t.position]
+      order_by: [asc_nulls_last: tlp.position, asc: t.due_at, asc: t.position]
   end
 
   defp apply_smart_filter(q, :anytime, _now, _eod) do
-    from [t, _c, _b, _g, _bs, _ts] in q,
+    from [t, _c, _b, _g, _bs, _ts, tlp] in q,
       where: t.done == false and is_nil(t.due_at),
-      order_by: [asc: t.inserted_at]
+      order_by: [asc_nulls_last: tlp.position, asc: t.inserted_at]
   end
 
   defp apply_smart_filter(q, :waiting, _now, _eod) do
-    from [t, c, _b, g, _bs, _ts] in q,
+    from [t, c, _b, g, _bs, _ts, tlp] in q,
       where:
         t.done == false and
           (t.waiting == true or c.waiting == true or
              (not is_nil(g.id) and g.waiting == true)),
-      order_by: [asc: t.position]
+      order_by: [asc_nulls_last: tlp.position, asc: t.position]
   end
 
   defp apply_smart_filter(q, :completed, _now, _eod) do
-    from [t, _c, _b, _g, _bs, _ts] in q,
+    from [t, _c, _b, _g, _bs, _ts, _tlp] in q,
       where: t.done == true,
       order_by: [desc: t.updated_at]
   end
 
   defp apply_smart_filter(q, :trash, _now, _eod) do
-    from [t, _c, _b, _g, _bs, _ts] in q,
+    from [t, _c, _b, _g, _bs, _ts, _tlp] in q,
       where: not is_nil(t.deleted_at),
       order_by: [desc: t.deleted_at]
   end

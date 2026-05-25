@@ -91,6 +91,31 @@ defmodule ToDoWeb.TaskLive.Smart do
     end
   end
 
+  # Reorder the smart-list LIST view by drag. Ignore the client-supplied
+  # scope and use the LV's own — the client's claim is only used as a
+  # sanity check. The Boards function rewrites the user's
+  # TaskListPosition rows for this scope from the ordered ids array.
+  def handle_event("reorder_list_tasks", %{"scope" => scope_str, "task_ids" => ids}, socket) do
+    user_id = socket.assigns.current_scope.user.id
+    scope = socket.assigns.scope
+
+    cond do
+      scope not in [:today, :upcoming, :anytime, :waiting] ->
+        {:noreply, socket}
+
+      to_string(scope) != scope_str ->
+        {:noreply, socket}
+
+      true ->
+        {:ok, _} = Boards.reorder_list_tasks(user_id, scope, ids)
+        rows = Boards.list_smart_tasks(user_id, scope)
+        {:noreply, socket |> assign(:rows, rows) |> assign(:grouped, group_by_board(rows))}
+    end
+  end
+
+  # True for scopes that allow user-controlled drag-reordering of the LIST view.
+  defp reorderable?(scope), do: scope in [:today, :upcoming, :anytime, :waiting]
+
   defp group_by_board(rows) do
     rows
     |> Enum.group_by(& &1.board.id)
@@ -199,15 +224,35 @@ defmodule ToDoWeb.TaskLive.Smart do
           Nothing here.
         </div>
 
-        <%!-- List view: flat ordered list. `@rows` is already sorted by
-             the SQL query (asc due_at for Today/Upcoming, asc
-             inserted_at for Anytime, asc position for Waiting,
-             desc updated_at for Completed, desc deleted_at for Trash),
-             so the rendering layer just iterates in order. The
-             per-row meta line carries board → group → column so the
-             user can still see the origin of each task. --%>
-        <ul :if={@view == :list and @rows != []} class="border border-base-300 rounded divide-y divide-base-300">
-          <li :for={row <- @rows} class="flex items-start gap-3 p-3 bg-base-100">
+        <%!-- List view: flat ordered list. `@rows` is sorted by the SQL
+             query — manual TaskListPosition.position first (asc, nulls
+             last) and then the scope-specific chronological default
+             (due_at for Today/Upcoming, inserted_at for Anytime, etc.).
+             For the four "active" scopes we attach the SortableListTasks
+             hook so the user can drag rows; completed/trash are read-only
+             and skip the hook. Each <li> gets a stable id so morphdom
+             tracks rows through reorders without flicker. --%>
+        <ul
+          :if={@view == :list and @rows != []}
+          id={"list-tasks-#{@scope}"}
+          phx-hook={if reorderable?(@scope), do: "SortableListTasks"}
+          data-scope={@scope}
+          class="border border-base-300 rounded divide-y divide-base-300"
+        >
+          <li
+            :for={row <- @rows}
+            id={"list-task-#{@scope}-#{row.task.id}"}
+            data-task-id={row.task.id}
+            class="flex items-start gap-3 p-3 bg-base-100"
+          >
+            <span
+              :if={reorderable?(@scope)}
+              data-list-drag-handle
+              class="cursor-grab active:cursor-grabbing text-base-content/40 hover:text-base-content/70 mt-1 touch-none select-none"
+              title="Drag to reorder"
+            >
+              <.icon name="hero-bars-3" class="size-4" />
+            </span>
             <input
               :if={@scope != :trash}
               type="checkbox"

@@ -329,6 +329,32 @@ Hooks.SortableTasks = {
   }
 }
 
+// SortableListTasks — drag-reorder tasks in the smart-list LIST view.
+// The list LV doesn't yet have a server-side concept of inter-board
+// reordering, so each scope (today/upcoming/anytime/waiting) maintains
+// its own ordering. On drag end we push the full ordered task_ids
+// array; the server rewrites the user's TaskListPosition rows for that
+// scope from the array.
+Hooks.SortableListTasks = {
+  mounted() {
+    this.sortable = new Sortable(this.el, {
+      animation: 150,
+      ghostClass: "opacity-40",
+      dragClass: "cursor-grabbing",
+      handle: "[data-list-drag-handle]",
+      onEnd: () => {
+        const ids = Array.from(this.el.children)
+          .map((el) => el.dataset.taskId)
+          .filter(Boolean)
+        this.pushEvent("reorder_list_tasks", {scope: this.el.dataset.scope, task_ids: ids})
+      }
+    })
+  },
+  destroyed() {
+    this.sortable && this.sortable.destroy()
+  }
+}
+
 Hooks.SmartViewPersist = {
   mounted() {
     this.onClick = (e) => {
