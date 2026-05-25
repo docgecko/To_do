@@ -84,6 +84,14 @@ defmodule ToDoWeb.Router do
     end
 
     post "/users/update-password", UserSessionController, :update_password
+
+    # Push-subscription endpoints. Sits inside the authenticated browser
+    # scope (so the session cookie + CSRF are picked up automatically),
+    # but accepts JSON bodies via Plug.Parsers at the endpoint.
+    scope "/api/push", Api, as: :api_push do
+      post "/subscribe", PushSubscriptionController, :subscribe
+      post "/unsubscribe", PushSubscriptionController, :unsubscribe
+    end
   end
 
   scope "/", ToDoWeb do

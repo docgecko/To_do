@@ -68,6 +68,10 @@ defmodule ToDo.MixProject do
       {:ex_aws, "~> 2.5"},
       {:ex_aws_s3, "~> 2.5"},
       {:sweet_xml, "~> 0.7"},
+      # Web Push Protocol encryption — RFC 8030 / 8291 / VAPID. Lets the
+      # server send push payloads to a browser's PushManager subscription
+      # (lock-screen notifications on iOS PWAs since iOS 16.4).
+      {:web_push_encryption, "~> 0.3"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 0.26"},

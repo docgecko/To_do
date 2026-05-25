@@ -70,6 +70,49 @@ async function cacheFirst(req) {
   }
 }
 
+// ---------- Web Push ----------
+//
+// The server (ToDo.Notifications.create_or_skip → ToDo.PushSubscriptions)
+// dispatches a JSON payload through the user's push service whenever a
+// new in-app notification is created. The shape matches push_payload/1
+// in lib/to_do/notifications.ex:
+//   { title, body, tag, url, icon, badge }
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try { payload = event.data?.json() ?? {}; } catch (_) {}
+
+  const title = payload.title || "Orelle";
+  const opts = {
+    body: payload.body || "",
+    tag: payload.tag,            // dedupes if multiple pushes arrive for the same notif
+    icon: payload.icon || "/icons/icon-192.png",
+    badge: payload.badge || "/icons/icon-192.png",
+    data: { url: payload.url || "/today" }
+  };
+
+  event.waitUntil(self.registration.showNotification(title, opts));
+});
+
+// Tap on a lock-screen notification → focus an existing window if one
+// is open at the same URL, otherwise open a new one.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || "/today";
+
+  event.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const client of all) {
+      // Existing window already open — focus + navigate it
+      if ("focus" in client) {
+        await client.focus();
+        if ("navigate" in client) await client.navigate(url).catch(() => {});
+        return;
+      }
+    }
+    if (self.clients.openWindow) await self.clients.openWindow(url);
+  })());
+});
+
 async function networkFirstWithFallback(req) {
   const cache = await caches.open(RUNTIME_CACHE);
   try {

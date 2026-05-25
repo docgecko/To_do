@@ -25,6 +25,10 @@
     <%!-- Status-bar / address-bar tint on Chrome / supported browsers. --%>
     <meta name="theme-color" content="#4f46e5" />
 
+    <%!-- VAPID public key — needed by PushManager.subscribe() in the
+         client. Safe to expose (it's the public half of the keypair). --%>
+    <meta name="vapid-public-key" content={Application.get_env(:to_do, :vapid_public_key, "")} />
+
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
     <%!-- esbuild emits a sibling CSS file when JS imports stylesheets (e.g. cropper.min.css). --%>
     <link phx-track-static rel="stylesheet" href={~p"/assets/js/app.css"} />

@@ -20,6 +20,23 @@ if System.get_env("PHX_SERVER") do
   config :to_do, ToDoWeb.Endpoint, server: true
 end
 
+# Web Push (VAPID) — read at every env. Without these set, push sending
+# silently no-ops, which is correct for dev and test.
+vapid_public = System.get_env("VAPID_PUBLIC_KEY")
+vapid_private = System.get_env("VAPID_PRIVATE_KEY")
+vapid_subject = System.get_env("VAPID_SUBJECT") || "mailto:daren.sdw@gmail.com"
+
+if vapid_public && vapid_private do
+  config :web_push_encryption, :vapid_details,
+    subject: vapid_subject,
+    public_key: vapid_public,
+    private_key: vapid_private
+
+  # Mirror the public key into our own app config so a Phoenix
+  # component / controller can serve it to the browser at runtime.
+  config :to_do, :vapid_public_key, vapid_public
+end
+
 if config_env() == :prod do
   # Postgres connection URL set as a Fly secret by `flyctl postgres attach`.
   database_url =

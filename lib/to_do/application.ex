@@ -12,6 +12,10 @@ defmodule ToDo.Application do
       ToDo.Repo,
       {DNSCluster, query: Application.get_env(:to_do, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: ToDo.PubSub},
+      # Async-task supervisor for fire-and-forget side-effects (e.g.
+      # dispatching Web Push payloads from `Notifications.create_or_skip/1`
+      # without blocking the calling process).
+      {Task.Supervisor, name: ToDo.TaskSupervisor},
       ToDo.Notifications.Scanner,
       ToDo.Notifications.Mailer,
       # Start to serve requests, typically the last entry

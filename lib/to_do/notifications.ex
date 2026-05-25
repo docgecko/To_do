@@ -86,6 +86,14 @@ defmodule ToDo.Notifications do
     case %Notification{} |> Notification.changeset(attrs) |> Repo.insert() do
       {:ok, notif} ->
         broadcast(notif, :created)
+        # Also ship a Web Push so the bell update lands on the user's
+        # phone lock screen — not just in any open browser tab. Async so
+        # the network round-trip doesn't block the caller (scanner /
+        # share helper). VAPID-unset envs (dev) make this a no-op.
+        Task.Supervisor.start_child(ToDo.TaskSupervisor, fn ->
+          push_payload(notif) |> then(&ToDo.PushSubscriptions.push_to_user(notif.user_id, &1))
+        end)
+
         {:ok, notif}
 
       {:error, %Ecto.Changeset{errors: errors}} = error ->
@@ -119,6 +127,34 @@ defmodule ToDo.Notifications do
     Phoenix.PubSub.broadcast(@pubsub, topic(user_id), {:notifications, :all_read})
     {:ok, count}
   end
+
+  ## Push payload helpers
+
+  # Shape the service worker's `push` event listener expects. Title +
+  # body line up with the lock-screen notification layout; `url` is the
+  # deep-link followed when the user taps the notification.
+  defp push_payload(%Notification{} = notif) do
+    %{
+      "title" => push_title(notif.kind),
+      "body" => notif.body,
+      "tag" => "orelle-notif-#{notif.id}",
+      "url" => push_url(notif),
+      "icon" => "/icons/icon-192.png",
+      "badge" => "/icons/icon-192.png"
+    }
+  end
+
+  defp push_title("task_due_soon"), do: "Task due soon"
+  defp push_title("task_overdue"), do: "Task overdue"
+  defp push_title("task_shared"), do: "Task shared with you"
+  defp push_title("board_shared"), do: "Board shared with you"
+  defp push_title(_), do: "Orelle"
+
+  defp push_url(%Notification{kind: "board_shared", board_id: id}) when not is_nil(id),
+    do: "/boards/#{id}"
+
+  defp push_url(%Notification{task_id: id}) when not is_nil(id), do: "/today?edit=task:#{id}"
+  defp push_url(_), do: "/today"
 
   ## Email batching
 

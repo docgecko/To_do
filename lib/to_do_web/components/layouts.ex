@@ -91,7 +91,7 @@ defmodule ToDoWeb.Layouts do
     <%!-- DaisyUI drawer: sidebar slides out on `< md`, always-on at `md+`.
          The hidden checkbox is the toggle target — labels on the hamburger
          and on the backdrop both flip it. No JS needed. --%>
-    <div class="drawer md:drawer-open min-h-screen bg-base-100">
+    <div id="orelle-shell" phx-hook="PullToRefresh" class="drawer md:drawer-open min-h-screen bg-base-100">
       <input id="orelle-sidebar-drawer" type="checkbox" class="drawer-toggle" />
 
       <%!-- Main content side --%>
@@ -268,6 +268,26 @@ defmodule ToDoWeb.Layouts do
             </button>
           </li>
         </ul>
+        <%!-- Enable iPhone lock-screen / desktop push notifications. The
+             hook reveals the row only when the browser supports push AND
+             permission isn't already granted; once subscribed it hides
+             itself. --%>
+        <div
+          id="enable-push-notifications"
+          phx-hook="EnablePushNotifications"
+          phx-update="ignore"
+          hidden
+          class="px-3 py-2 border-t border-base-300"
+        >
+          <button
+            type="button"
+            data-enable-push
+            class="w-full text-left flex items-center gap-2 text-sm text-primary hover:underline"
+          >
+            <.icon name="hero-bell-alert" class="size-4" />
+            <span>Enable lock-screen notifications</span>
+          </button>
+        </div>
       </div>
     </div>
     """

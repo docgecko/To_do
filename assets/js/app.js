@@ -137,6 +137,178 @@ Hooks.AvatarCropper = {
   }
 }
 
+// PullToRefresh — drags the page down from the top to reload, the way
+// native iOS apps do. Attached to the shell layout via `phx-hook` so it
+// runs on every authenticated page. No-op on desktop because touchstart
+// never fires.
+//
+// Constraints:
+//   * Only triggers when `<main>` is scrolled to the top (otherwise it
+//     fights with normal vertical scrolling).
+//   * Threshold of ~70px before "release to refresh" arms.
+//   * The indicator is a small fixed banner that slides in from above
+//     while the user pulls; opacity tracks the pull distance.
+Hooks.PullToRefresh = {
+  mounted() {
+    const threshold = 70
+    let startY = null
+    let pulling = false
+
+    const indicator = document.createElement("div")
+    indicator.style.cssText =
+      "position:fixed;top:env(safe-area-inset-top,0);left:50%;transform:translateX(-50%) translateY(-100%);" +
+      "background:#4f46e5;color:#fff;padding:8px 16px;border-radius:0 0 12px 12px;" +
+      "font-size:13px;font-weight:500;z-index:9999;pointer-events:none;" +
+      "transition:transform 200ms ease,opacity 200ms ease;opacity:0;letter-spacing:0.01em;"
+    indicator.textContent = "↓  Pull to refresh"
+    document.body.appendChild(indicator)
+    this.indicator = indicator
+
+    const mainEl = () => document.querySelector("main")
+
+    this.onTouchStart = (e) => {
+      // Only arm at the very top of the scroll area.
+      const main = mainEl()
+      if (main && main.scrollTop > 0) return
+      if (window.scrollY > 0) return
+      startY = e.touches[0].clientY
+      pulling = false
+    }
+
+    this.onTouchMove = (e) => {
+      if (startY === null) return
+      const dy = e.touches[0].clientY - startY
+      if (dy <= 0) return
+      pulling = true
+      const armed = dy >= threshold
+      const lift = Math.min(dy * 0.4, 50) - 50
+      indicator.style.transform = `translateX(-50%) translateY(${lift}px)`
+      indicator.style.opacity = Math.min(dy / threshold, 1).toFixed(2)
+      indicator.textContent = armed ? "↻  Release to refresh" : "↓  Pull to refresh"
+    }
+
+    this.onTouchEnd = (e) => {
+      if (!pulling) { startY = null; return }
+      const endY = e.changedTouches[0]?.clientY ?? startY
+      const dy = endY - startY
+      if (dy >= threshold) {
+        indicator.textContent = "↻  Refreshing…"
+        indicator.style.transform = "translateX(-50%) translateY(8px)"
+        indicator.style.opacity = "1"
+        // Small delay so the user sees the "Refreshing" state.
+        setTimeout(() => window.location.reload(), 180)
+      } else {
+        indicator.style.transform = "translateX(-50%) translateY(-100%)"
+        indicator.style.opacity = "0"
+      }
+      startY = null
+      pulling = false
+    }
+
+    document.addEventListener("touchstart", this.onTouchStart, {passive: true})
+    document.addEventListener("touchmove", this.onTouchMove, {passive: true})
+    document.addEventListener("touchend", this.onTouchEnd, {passive: true})
+  },
+  destroyed() {
+    document.removeEventListener("touchstart", this.onTouchStart)
+    document.removeEventListener("touchmove", this.onTouchMove)
+    document.removeEventListener("touchend", this.onTouchEnd)
+    this.indicator?.remove()
+  }
+}
+
+// EnablePushNotifications — handles the "click to enable lock-screen
+// notifications" flow:
+//
+//   1. On mount, check whether the browser supports the Push API and
+//      the user is already subscribed. If yes, stay hidden.
+//   2. If not, reveal the row and listen for clicks.
+//   3. On click, request notification permission (iOS native prompt),
+//      subscribe to PushManager with our VAPID public key, and POST
+//      the subscription to /api/push/subscribe.
+//
+// Element shape (built in lib/to_do_web/components/layouts.ex):
+//   <div id="enable-push-notifications" phx-hook="EnablePushNotifications"
+//        phx-update="ignore" hidden>
+//     <button data-enable-push>Enable lock-screen notifications</button>
+//   </div>
+Hooks.EnablePushNotifications = {
+  async mounted() {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) ||
+        !("Notification" in window)) {
+      return // browser doesn't support; stay hidden
+    }
+    const vapid = document.querySelector('meta[name="vapid-public-key"]')?.content
+    if (!vapid) return // server hasn't configured VAPID yet
+
+    const reg = await navigator.serviceWorker.ready
+    const existing = await reg.pushManager.getSubscription()
+
+    // Already subscribed AND permission is "granted" — nothing to ask.
+    if (existing && Notification.permission === "granted") return
+
+    // "denied" — Safari setting → Notifications → blocked. We can't
+    // re-prompt; only the user can flip it. Stay hidden.
+    if (Notification.permission === "denied") return
+
+    // Reveal the row + wire the button.
+    this.el.hidden = false
+    this.btn = this.el.querySelector("[data-enable-push]")
+    this.onClick = async () => {
+      try {
+        this.btn.disabled = true
+        const perm = await Notification.requestPermission()
+        if (perm !== "granted") {
+          this.btn.disabled = false
+          return
+        }
+        const sub = existing || await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapid)
+        })
+        await postSubscription(sub)
+        this.el.hidden = true
+      } catch (err) {
+        console.warn("Push subscribe failed:", err)
+        this.btn.disabled = false
+      }
+    }
+    this.btn.addEventListener("click", this.onClick)
+  },
+  destroyed() {
+    this.btn?.removeEventListener("click", this.onClick)
+  }
+}
+
+// Helpers used by EnablePushNotifications.
+
+function urlBase64ToUint8Array(s) {
+  const padding = "=".repeat((4 - (s.length % 4)) % 4)
+  const base64 = (s + padding).replace(/-/g, "+").replace(/_/g, "/")
+  const raw = atob(base64)
+  const out = new Uint8Array(raw.length)
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i)
+  return out
+}
+
+async function postSubscription(sub) {
+  const json = sub.toJSON()
+  const csrf = document.querySelector('meta[name="csrf-token"]')?.content
+  const res = await fetch("/api/push/subscribe", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+      "x-csrf-token": csrf || ""
+    },
+    body: JSON.stringify({
+      endpoint: json.endpoint,
+      keys: json.keys
+    })
+  })
+  if (!res.ok) throw new Error("subscribe POST returned " + res.status)
+}
+
 Hooks.SortableTasks = {
   mounted() {
     this.sortable = new Sortable(this.el, {
