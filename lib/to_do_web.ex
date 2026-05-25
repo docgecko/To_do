@@ -17,7 +17,8 @@ defmodule ToDoWeb do
   those modules here.
   """
 
-  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt uploads)
+  def static_paths,
+    do: ~w(assets fonts images icons favicon.ico robots.txt uploads manifest.webmanifest sw.js)
 
   def router do
     quote do

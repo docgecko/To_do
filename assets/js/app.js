@@ -296,3 +296,14 @@ if (process.env.NODE_ENV === "development") {
   })
 }
 
+
+// Register the PWA service worker so the app installs cleanly from "Add to
+// Home Screen" and the static-asset cache survives spotty connections.
+// SW lives at the site root so its scope covers every path.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("/sw.js", { scope: "/" })
+      .catch((err) => console.warn("SW registration failed:", err))
+  })
+}

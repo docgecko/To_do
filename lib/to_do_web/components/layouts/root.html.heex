@@ -8,6 +8,23 @@
       {assigns[:page_title]}
     </.live_title>
     <meta name="description" content="Stack your day. Kanban boards with smart lists for Today, Upcoming, Anytime, and Waiting." />
+
+    <%!-- PWA manifest: declares Orelle as an installable web app to iOS and Android. --%>
+    <link rel="manifest" href={~p"/manifest.webmanifest"} />
+
+    <%!-- iOS-specific PWA tags. When the user does "Add to Home Screen", these tell iOS to:
+         * launch full-screen (no Safari chrome) — `apple-mobile-web-app-capable=yes`
+         * show a dark status bar that blends with the app — `black-translucent`
+         * display "Orelle" as the icon label — `apple-mobile-web-app-title`
+         * use this icon (180×180 is the modern iOS standard) --%>
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Orelle" />
+    <link rel="apple-touch-icon" href={~p"/icons/apple-touch-icon.png"} />
+
+    <%!-- Status-bar / address-bar tint on Chrome / supported browsers. --%>
+    <meta name="theme-color" content="#4f46e5" />
+
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
     <%!-- esbuild emits a sibling CSS file when JS imports stylesheets (e.g. cropper.min.css). --%>
     <link phx-track-static rel="stylesheet" href={~p"/assets/js/app.css"} />
