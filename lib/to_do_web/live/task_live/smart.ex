@@ -199,116 +199,91 @@ defmodule ToDoWeb.TaskLive.Smart do
           Nothing here.
         </div>
 
-        <%!-- List view: full board → group → column → tasks hierarchy.
-             Each level gets its own visual weight so the structure of
-             the user's boards is legible at a glance. --%>
-        <div :if={@view == :list and @rows != []} class="space-y-8">
-          <section :for={b <- @grouped} class="space-y-4">
-            <%!-- Board header (level 1) — color dot + bold name --%>
-            <div class="flex items-center gap-2 text-sm font-semibold">
-              <span class="w-2.5 h-2.5 rounded" style={"background:#{b.board.color || "#3b82f6"}"} />
-              <.link navigate={~p"/boards/#{b.board.id}"} class="hover:underline">
-                {b.board.name}
-              </.link>
+        <%!-- List view: flat ordered list. `@rows` is already sorted by
+             the SQL query (asc due_at for Today/Upcoming, asc
+             inserted_at for Anytime, asc position for Waiting,
+             desc updated_at for Completed, desc deleted_at for Trash),
+             so the rendering layer just iterates in order. The
+             per-row meta line carries board → group → column so the
+             user can still see the origin of each task. --%>
+        <ul :if={@view == :list and @rows != []} class="border border-base-300 rounded divide-y divide-base-300">
+          <li :for={row <- @rows} class="flex items-start gap-3 p-3 bg-base-100">
+            <input
+              :if={@scope != :trash}
+              type="checkbox"
+              checked={row.task.done}
+              phx-click="toggle_done"
+              phx-value-id={row.task.id}
+              class="checkbox checkbox-sm mt-1"
+            />
+            <div :if={@scope == :trash} class="flex gap-1 mt-0.5">
+              <button
+                phx-click="restore_task"
+                phx-value-id={row.task.id}
+                class="btn btn-ghost btn-xs"
+                title="Restore"
+              >
+                <.icon name="hero-arrow-uturn-left" class="size-4" />
+              </button>
+              <button
+                phx-click="purge_task"
+                phx-value-id={row.task.id}
+                data-confirm="Permanently delete this task? This cannot be undone."
+                class="btn btn-ghost btn-xs text-error"
+                title="Delete permanently"
+              >
+                <.icon name="hero-trash" class="size-4" />
+              </button>
             </div>
-
-            <%!-- Group section (level 2) — uppercase small caps --%>
-            <div :for={g <- b.groups} class="space-y-3">
-              <h3 class="text-xs font-semibold uppercase tracking-wide text-base-content/60 px-1">
-                <%= if g.group do %>
+            <div class="flex-1 min-w-0">
+              <.link
+                :if={@scope != :trash}
+                navigate={~p"/boards/#{row.board.id}?edit=task:#{row.task.id}"}
+                class="block hover:underline"
+                title="Click to edit task"
+              >
+                <div class={["break-words leading-tight", row.task.done && "line-through text-base-content/50"]}>
+                  {row.task.title}
+                </div>
+                <div :if={row.task.notes && row.task.notes != ""} class="text-xs text-base-content/60 leading-tight whitespace-pre-line">{row.task.notes}</div>
+              </.link>
+              <div :if={@scope == :trash}>
+                <div class={["break-words leading-tight", row.task.done && "line-through text-base-content/50"]}>
+                  {row.task.title}
+                </div>
+                <div :if={row.task.notes && row.task.notes != ""} class="text-xs text-base-content/60 leading-tight whitespace-pre-line">{row.task.notes}</div>
+              </div>
+              <div class="text-xs text-base-content/50 mt-2 flex flex-wrap gap-x-3 gap-y-1 items-center">
+                <.link navigate={~p"/boards/#{row.board.id}"} class="hover:underline flex items-center gap-1">
+                  <span class="w-2 h-2 rounded" style={"background:#{row.board.color || "#3b82f6"}"} />
+                  {row.board.name}
+                </.link>
+                <span>·</span>
+                <span>
                   <.link
-                    navigate={~p"/boards/#{b.board.id}?edit=group:#{g.group.id}"}
+                    :if={row.group}
+                    navigate={~p"/boards/#{row.board.id}?edit=group:#{row.group.id}"}
                     class="hover:underline"
                     title="Click to edit group"
-                  >{g.group.name}</.link>
-                <% else %>
-                  Ungrouped
-                <% end %>
-              </h3>
-
-              <%!-- Column section (level 3) — slightly indented, plain
-                   medium-weight label sitting above a bordered task list. --%>
-              <div :for={col <- Enum.sort_by(g.columns, & &1.category.position)} class="space-y-1 pl-3 border-l-2 border-base-300/60">
-                <h4 class="text-xs font-medium text-base-content/70 pl-1">
-                  <.link
-                    navigate={~p"/boards/#{b.board.id}?edit=column:#{col.category.id}"}
+                  >{row.group.name}</.link><span :if={row.group}> / </span><.link
+                    navigate={~p"/boards/#{row.board.id}?edit=column:#{row.category.id}"}
                     class="hover:underline"
                     title="Click to edit column"
-                  >{col.category.name}</.link>
-                </h4>
-
-                <ul class="border border-base-300 rounded divide-y divide-base-300">
-                  <li
-                    :for={task <- col.tasks}
-                    class="flex items-start gap-3 p-3 bg-base-100"
-                  >
-                    <input
-                      :if={@scope != :trash}
-                      type="checkbox"
-                      checked={task.done}
-                      phx-click="toggle_done"
-                      phx-value-id={task.id}
-                      class="checkbox checkbox-sm mt-1"
-                    />
-                    <div :if={@scope == :trash} class="flex gap-1 mt-0.5">
-                      <button
-                        phx-click="restore_task"
-                        phx-value-id={task.id}
-                        class="btn btn-ghost btn-xs"
-                        title="Restore"
-                      >
-                        <.icon name="hero-arrow-uturn-left" class="size-4" />
-                      </button>
-                      <button
-                        phx-click="purge_task"
-                        phx-value-id={task.id}
-                        data-confirm="Permanently delete this task? This cannot be undone."
-                        class="btn btn-ghost btn-xs text-error"
-                        title="Delete permanently"
-                      >
-                        <.icon name="hero-trash" class="size-4" />
-                      </button>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                      <.link
-                        :if={@scope != :trash}
-                        navigate={~p"/boards/#{b.board.id}?edit=task:#{task.id}"}
-                        class="block hover:underline"
-                        title="Click to edit task"
-                      >
-                        <div class={["break-words leading-tight", task.done && "line-through text-base-content/50"]}>
-                          {task.title}
-                        </div>
-                        <div :if={task.notes && task.notes != ""} class="text-xs text-base-content/60 leading-tight whitespace-pre-line">{task.notes}</div>
-                      </.link>
-                      <div :if={@scope == :trash}>
-                        <div class={["break-words leading-tight", task.done && "line-through text-base-content/50"]}>
-                          {task.title}
-                        </div>
-                        <div :if={task.notes && task.notes != ""} class="text-xs text-base-content/60 leading-tight whitespace-pre-line">{task.notes}</div>
-                      </div>
-                      <%!-- Meta line — board, group, column are all in
-                           section headers above, so the row only needs
-                           to add due date / repeat / waiting facts. --%>
-                      <div :if={task.due_at || repeat_label(task.repeat, task.repeat_every) || task.waiting}
-                           class="text-xs text-base-content/50 mt-2 flex flex-wrap gap-x-3 gap-y-1 items-center">
-                        <span :if={task.due_at} class="inline-flex items-center gap-1">
-                          <.icon name="hero-clock" class="size-3.5" /> {format_due(task.due_at)}
-                        </span>
-                        <span :if={repeat_label(task.repeat, task.repeat_every)} class="inline-flex items-center gap-1" title="Repeats">
-                          <.icon name="hero-arrow-path" class="size-3.5" /> {repeat_label(task.repeat, task.repeat_every)}
-                        </span>
-                        <span :if={task.waiting} class="inline-flex items-center gap-1" title="Task flagged as waiting">
-                          ⏳ Waiting
-                        </span>
-                      </div>
-                    </div>
-                  </li>
-                </ul>
+                  >{row.category.name}</.link>
+                </span>
+                <span :if={row.task.due_at} class="inline-flex items-center gap-1">
+                  <.icon name="hero-clock" class="size-3.5" /> {format_due(row.task.due_at)}
+                </span>
+                <span :if={repeat_label(row.task.repeat, row.task.repeat_every)} class="inline-flex items-center gap-1" title="Repeats">
+                  <.icon name="hero-arrow-path" class="size-3.5" /> {repeat_label(row.task.repeat, row.task.repeat_every)}
+                </span>
+                <span :if={row.task.waiting} class="inline-flex items-center gap-1" title="Task flagged as waiting">
+                  ⏳ Waiting
+                </span>
               </div>
             </div>
-          </section>
-        </div>
+          </li>
+        </ul>
 
         <div :if={@view == :board and @rows != []} class="space-y-8">
           <section :for={b <- @grouped} class="space-y-3">
