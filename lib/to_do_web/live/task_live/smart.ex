@@ -124,6 +124,19 @@ defmodule ToDoWeb.TaskLive.Smart do
   defp view_href(scope, :list), do: "/#{scope}"
   defp view_href(scope, :board), do: "/#{scope}?view=board"
 
+  # Collapse a group's nested columns→tasks into a flat ordered list of
+  # `%{task, category}` items, sorted by column position then preserving
+  # SQL-row order within each column. Used by the list view so it can
+  # show one section per group while still attributing each task to its
+  # column in the meta line.
+  defp flatten_group_for_list(%{columns: cols}) do
+    cols
+    |> Enum.sort_by(& &1.category.position)
+    |> Enum.flat_map(fn %{category: cat, tasks: tasks} ->
+      Enum.map(tasks, fn t -> %{task: t, category: cat} end)
+    end)
+  end
+
   # Where the board view should push_navigate back to after closing a modal
   # opened from this LV. Maps the smart-list scope atom to its URL path.
   defp return_path(scope) when scope in [:today, :upcoming, :anytime, :waiting], do: "/#{scope}"
@@ -199,84 +212,113 @@ defmodule ToDoWeb.TaskLive.Smart do
           Nothing here.
         </div>
 
-        <ul :if={@view == :list and @rows != []} class="border border-base-300 rounded divide-y divide-base-300">
-          <li :for={row <- @rows} class="flex items-start gap-3 p-3 bg-base-100">
-            <input
-              :if={@scope != :trash}
-              type="checkbox"
-              checked={row.task.done}
-              phx-click="toggle_done"
-              phx-value-id={row.task.id}
-              class="checkbox checkbox-sm mt-1"
-            />
-            <div :if={@scope == :trash} class="flex gap-1 mt-0.5">
-              <button
-                phx-click="restore_task"
-                phx-value-id={row.task.id}
-                class="btn btn-ghost btn-xs"
-                title="Restore"
-              >
-                <.icon name="hero-arrow-uturn-left" class="size-4" />
-              </button>
-              <button
-                phx-click="purge_task"
-                phx-value-id={row.task.id}
-                data-confirm="Permanently delete this task? This cannot be undone."
-                class="btn btn-ghost btn-xs text-error"
-                title="Delete permanently"
-              >
-                <.icon name="hero-trash" class="size-4" />
-              </button>
-            </div>
-            <div class="flex-1 min-w-0">
-              <.link
-                :if={@scope != :trash}
-                navigate={~p"/boards/#{row.board.id}?edit=task:#{row.task.id}"}
-                class="block hover:underline"
-                title="Click to edit task"
-              >
-                <div class={["break-words leading-tight", row.task.done && "line-through text-base-content/50"]}>
-                  {row.task.title}
-                </div>
-                <div :if={row.task.notes && row.task.notes != ""} class="text-xs text-base-content/60 leading-tight whitespace-pre-line">{row.task.notes}</div>
+        <%!-- List view: tasks are no longer one flat <ul>. We now use the
+             same `@grouped` (board → groups → columns → tasks) structure
+             the board view uses, so the list shows clear board + group
+             section headers. Inside each group, tasks from all the
+             group's columns are flattened into a single ordered list —
+             column identity is still visible in the per-task meta line. --%>
+        <div :if={@view == :list and @rows != []} class="space-y-8">
+          <section :for={b <- @grouped} class="space-y-4">
+            <%!-- Board header — sits flush with the content edge --%>
+            <div class="flex items-center gap-2 text-sm font-semibold">
+              <span class="w-2.5 h-2.5 rounded" style={"background:#{b.board.color || "#3b82f6"}"} />
+              <.link navigate={~p"/boards/#{b.board.id}"} class="hover:underline">
+                {b.board.name}
               </.link>
-              <div :if={@scope == :trash}>
-                <div class={["break-words leading-tight", row.task.done && "line-through text-base-content/50"]}>
-                  {row.task.title}
-                </div>
-                <div :if={row.task.notes && row.task.notes != ""} class="text-xs text-base-content/60 leading-tight whitespace-pre-line">{row.task.notes}</div>
-              </div>
-              <div class="text-xs text-base-content/50 mt-2 flex flex-wrap gap-x-3 gap-y-1 items-center">
-                <.link navigate={~p"/boards/#{row.board.id}"} class="hover:underline flex items-center gap-1">
-                  <span class="w-2 h-2 rounded" style={"background:#{row.board.color || "#3b82f6"}"} />
-                  {row.board.name}
-                </.link>
-                <span>·</span>
-                <span>
+            </div>
+
+            <%!-- One sub-section per group, with the group name as a
+                 small uppercase header. Tasks within the group sit in a
+                 bordered list, matching the previous flat-list look. --%>
+            <div :for={g <- b.groups} class="space-y-2">
+              <h3 class="text-xs font-semibold uppercase tracking-wide text-base-content/60 px-1">
+                <%= if g.group do %>
                   <.link
-                    :if={row.group}
-                    navigate={~p"/boards/#{row.board.id}?edit=group:#{row.group.id}"}
+                    navigate={~p"/boards/#{b.board.id}?edit=group:#{g.group.id}"}
                     class="hover:underline"
                     title="Click to edit group"
-                  >{row.group.name}</.link><span :if={row.group}> / </span><.link
-                    navigate={~p"/boards/#{row.board.id}?edit=column:#{row.category.id}"}
-                    class="hover:underline"
-                    title="Click to edit column"
-                  >{row.category.name}</.link>
-                </span>
-                <span :if={row.task.due_at} class="inline-flex items-center gap-1">
-                  <.icon name="hero-clock" class="size-3.5" /> {format_due(row.task.due_at)}
-                </span>
-                <span :if={repeat_label(row.task.repeat, row.task.repeat_every)} class="inline-flex items-center gap-1" title="Repeats">
-                  <.icon name="hero-arrow-path" class="size-3.5" /> {repeat_label(row.task.repeat, row.task.repeat_every)}
-                </span>
-                <span :if={row.task.waiting} class="inline-flex items-center gap-1" title="Task flagged as waiting">
-                  ⏳ Waiting
-                </span>
-              </div>
+                  >{g.group.name}</.link>
+                <% else %>
+                  Ungrouped
+                <% end %>
+              </h3>
+
+              <ul class="border border-base-300 rounded divide-y divide-base-300">
+                <li
+                  :for={item <- flatten_group_for_list(g)}
+                  class="flex items-start gap-3 p-3 bg-base-100"
+                >
+                  <input
+                    :if={@scope != :trash}
+                    type="checkbox"
+                    checked={item.task.done}
+                    phx-click="toggle_done"
+                    phx-value-id={item.task.id}
+                    class="checkbox checkbox-sm mt-1"
+                  />
+                  <div :if={@scope == :trash} class="flex gap-1 mt-0.5">
+                    <button
+                      phx-click="restore_task"
+                      phx-value-id={item.task.id}
+                      class="btn btn-ghost btn-xs"
+                      title="Restore"
+                    >
+                      <.icon name="hero-arrow-uturn-left" class="size-4" />
+                    </button>
+                    <button
+                      phx-click="purge_task"
+                      phx-value-id={item.task.id}
+                      data-confirm="Permanently delete this task? This cannot be undone."
+                      class="btn btn-ghost btn-xs text-error"
+                      title="Delete permanently"
+                    >
+                      <.icon name="hero-trash" class="size-4" />
+                    </button>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <.link
+                      :if={@scope != :trash}
+                      navigate={~p"/boards/#{b.board.id}?edit=task:#{item.task.id}"}
+                      class="block hover:underline"
+                      title="Click to edit task"
+                    >
+                      <div class={["break-words leading-tight", item.task.done && "line-through text-base-content/50"]}>
+                        {item.task.title}
+                      </div>
+                      <div :if={item.task.notes && item.task.notes != ""} class="text-xs text-base-content/60 leading-tight whitespace-pre-line">{item.task.notes}</div>
+                    </.link>
+                    <div :if={@scope == :trash}>
+                      <div class={["break-words leading-tight", item.task.done && "line-through text-base-content/50"]}>
+                        {item.task.title}
+                      </div>
+                      <div :if={item.task.notes && item.task.notes != ""} class="text-xs text-base-content/60 leading-tight whitespace-pre-line">{item.task.notes}</div>
+                    </div>
+                    <%!-- Per-task meta line. Column name is shown here
+                         (group name lives in the section header above so
+                         we don't duplicate it). --%>
+                    <div class="text-xs text-base-content/50 mt-2 flex flex-wrap gap-x-3 gap-y-1 items-center">
+                      <.link
+                        navigate={~p"/boards/#{b.board.id}?edit=column:#{item.category.id}"}
+                        class="hover:underline"
+                        title="Click to edit column"
+                      >{item.category.name}</.link>
+                      <span :if={item.task.due_at} class="inline-flex items-center gap-1">
+                        <.icon name="hero-clock" class="size-3.5" /> {format_due(item.task.due_at)}
+                      </span>
+                      <span :if={repeat_label(item.task.repeat, item.task.repeat_every)} class="inline-flex items-center gap-1" title="Repeats">
+                        <.icon name="hero-arrow-path" class="size-3.5" /> {repeat_label(item.task.repeat, item.task.repeat_every)}
+                      </span>
+                      <span :if={item.task.waiting} class="inline-flex items-center gap-1" title="Task flagged as waiting">
+                        ⏳ Waiting
+                      </span>
+                    </div>
+                  </div>
+                </li>
+              </ul>
             </div>
-          </li>
-        </ul>
+          </section>
+        </div>
 
         <div :if={@view == :board and @rows != []} class="space-y-8">
           <section :for={b <- @grouped} class="space-y-3">
