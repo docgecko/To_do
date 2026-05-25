@@ -323,12 +323,12 @@ defmodule ToDoWeb.TaskLive.Smart do
         <div :if={@view == :board and @rows != []} class="space-y-8">
           <section :for={b <- @grouped} class="space-y-3">
             <div class="pb-4">
-              <%!-- See note in board_live/show.ex: pr-* lives ON the
-                   min-w-max flex (not its parent) so the trailing padding is
-                   part of the flex's intrinsic width and survives the
-                   horizontal scroll. --%>
-              <div class="flex gap-6 items-start min-w-max pr-4 sm:pr-6">
-                <div :for={grp <- b.groups} class="flex flex-col gap-2">
+              <%!-- Same layout pivot as board_live/show.ex: groups stack
+                   vertically and fill the viewport on mobile (so a kanban
+                   board is actually readable on a phone); switches to the
+                   horizontal kanban layout at the `md` breakpoint. --%>
+              <div class="flex flex-col gap-6 md:flex-row md:items-start md:min-w-max md:pr-6">
+                <div :for={grp <- b.groups} class="flex flex-col gap-2 w-full md:w-auto">
                   <.link
                     :if={grp.group && @scope != :trash}
                     navigate={~p"/boards/#{b.board.id}?edit=group:#{grp.group.id}"}
@@ -352,10 +352,10 @@ defmodule ToDoWeb.TaskLive.Smart do
                     Ungrouped
                   </div>
 
-                  <div class="flex gap-2 items-start min-h-[80px]">
+                  <div class="flex flex-col gap-2 md:flex-row md:items-start min-h-[80px]">
                     <div
                       :for={col <- grp.columns}
-                      class="w-64 bg-base-100 rounded-lg shadow-sm border border-base-300 flex flex-col"
+                      class="w-full md:w-64 bg-base-100 rounded-lg shadow-sm border border-base-300 flex flex-col"
                     >
                       <.link
                         :if={@scope != :trash}

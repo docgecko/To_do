@@ -1007,24 +1007,30 @@ defmodule ToDoWeb.BoardLive.Show do
       <div class="space-y-4">
         <div class="pb-8">
           <%!--
-            `pr-4 sm:pr-6` lives ON the `min-w-max` flex (not on its parent)
-            so the trailing padding is part of the flex container's intrinsic
-            width. With the padding on the parent, the inner flex overflows
-            past it and the rightmost column ends up flush against the
-            viewport on horizontal scroll.
+            Layout pivot at the `md` breakpoint:
+              * Mobile (< md): groups stack vertically full-width, columns
+                inside each group also stack vertically. Each group fills
+                the viewport width so it's actually readable; no
+                horizontal scroll.
+              * Desktop (≥ md): the classic kanban — groups arranged in a
+                horizontally-scrolling row, columns inside each group also
+                horizontal. `pr-4 sm:pr-6` lives ON the `min-w-max` flex
+                (not on a parent wrapper) so the trailing right gutter is
+                part of the scrollable content width and the rightmost
+                column doesn't sit flush against the viewport edge.
           --%>
           <div
             id={"board-#{@board.id}-groups"}
             phx-hook={@can_edit? && "SortableCategories"}
             data-sort-scope="board"
             data-sort-scope-id={@board.id}
-            class="flex gap-6 items-start min-w-max pr-4 sm:pr-6"
+            class="flex flex-col gap-6 md:flex-row md:items-start md:min-w-max md:pr-6"
           >
             <div
               :for={group <- visible_groups(@board.groups, @filter_group_id)}
               id={"group-#{group.id}"}
               data-category-id={group.id}
-              class="flex flex-col gap-2 group/grp scroll-mt-20"
+              class="flex flex-col gap-2 w-full md:w-auto group/grp scroll-mt-20"
             >
               <div
                 class="rounded-t font-semibold text-white min-w-[200px] flex items-stretch"
@@ -1057,12 +1063,12 @@ defmodule ToDoWeb.BoardLive.Show do
                 phx-hook={@can_edit? && "SortableCategories"}
                 data-sort-scope="parent"
                 data-sort-scope-id={group.id}
-                class="flex gap-2 items-start min-h-[80px]"
+                class="flex flex-col gap-2 md:flex-row md:items-start min-h-[80px]"
               >
                 <div
                   :for={sub <- group.children}
                   data-category-id={sub.id}
-                  class="w-64 bg-base-100 rounded-lg shadow-sm border border-base-300 flex flex-col group/col"
+                  class="w-full md:w-64 bg-base-100 rounded-lg shadow-sm border border-base-300 flex flex-col group/col"
                 >
                   <div class="border-b border-base-300 bg-base-200 rounded-t-lg flex items-stretch">
                     <span
