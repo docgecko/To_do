@@ -228,6 +228,7 @@ defmodule ToDo.Boards do
 
   def update_task(%Task{} = task, attrs) do
     attrs = maybe_relocate_to_waiting(task, attrs)
+    attrs = maybe_relocate_from_waiting(task, attrs)
     attrs = maybe_assign_position(task, attrs)
     task |> Task.changeset(attrs) |> Repo.update()
   end
@@ -235,8 +236,10 @@ defmodule ToDo.Boards do
   # When a task is being saved with `waiting: true` AND it isn't already
   # inside a waiting group, re-home it to the board's Waiting group
   # (creating that group on demand) under a column that mirrors the
-  # source column's name (also created on demand). Idempotent for tasks
-  # already in a waiting group — they keep their existing category.
+  # source column's name (also created on demand). The source
+  # category_id is stashed in `prior_category_id` so unticking waiting
+  # later can restore the task to its origin column.
+  # Idempotent for tasks already in a waiting group.
   defp maybe_relocate_to_waiting(task_or_nil, attrs) do
     if truthy_waiting?(attrs) do
       source_cat_id =
@@ -255,11 +258,89 @@ defmodule ToDo.Boards do
             attrs
           else
             waiting_col = find_or_create_waiting_column(source_cat)
-            Map.put(attrs, "category_id", to_string(waiting_col.id))
+
+            attrs
+            |> Map.put("category_id", to_string(waiting_col.id))
+            |> Map.put("prior_category_id", to_string(source_cat.id))
           end
       end
     else
       attrs
+    end
+  end
+
+  # Inverse: when a task is being saved with `waiting: false` AND the
+  # task is currently inside a waiting group, move it back to its
+  # origin column. Prefers the stored `prior_category_id`; falls back
+  # to a same-named non-waiting column on the same board for tasks
+  # that pre-date the prior-tracking column (or for users restoring
+  # tasks through other paths). Clears `prior_category_id` once moved.
+  defp maybe_relocate_from_waiting(nil, attrs), do: attrs
+
+  defp maybe_relocate_from_waiting(%Task{} = task, attrs) do
+    if explicit_unwait?(attrs) and currently_in_waiting?(task) do
+      destination = restore_target(task)
+
+      if destination do
+        attrs
+        |> Map.put("category_id", to_string(destination.id))
+        |> Map.put("prior_category_id", nil)
+      else
+        attrs
+      end
+    else
+      attrs
+    end
+  end
+
+  # Was the task in a waiting group at the moment of save? We check the
+  # current `category_id` from attrs (if the user is moving columns AND
+  # un-waiting at the same time) or fall back to the task's stored
+  # category.
+  defp currently_in_waiting?(%Task{category_id: cat_id}) do
+    case Repo.get(Category, cat_id) do
+      nil -> false
+      %Category{} = c -> in_waiting_group?(c)
+    end
+  end
+
+  # Where to send the task when waiting is unticked.
+  #   1. The stashed prior column (if it still exists)
+  #   2. A non-waiting column with the same name on the same board
+  #      (handy for tasks stored before prior_category_id existed)
+  defp restore_target(%Task{prior_category_id: prior_id} = task) when not is_nil(prior_id) do
+    case Repo.get(Category, prior_id) do
+      nil -> fallback_same_name_target(task)
+      cat -> if in_waiting_group?(cat), do: fallback_same_name_target(task), else: cat
+    end
+  end
+
+  defp restore_target(%Task{} = task), do: fallback_same_name_target(task)
+
+  defp fallback_same_name_target(%Task{category_id: cat_id}) do
+    case Repo.get(Category, cat_id) do
+      nil ->
+        nil
+
+      %Category{board_id: board_id, name: name} ->
+        query =
+          from c in Category,
+            join: g in Category,
+            on: g.id == c.parent_id,
+            where:
+              c.board_id == ^board_id and c.name == ^name and c.waiting == false and
+                g.waiting == false,
+            limit: 1
+
+        Repo.one(query)
+    end
+  end
+
+  defp explicit_unwait?(attrs) do
+    case Map.get(attrs, "waiting") || Map.get(attrs, :waiting) do
+      false -> true
+      "false" -> true
+      _ -> false
     end
   end
 

@@ -15,6 +15,7 @@ defmodule ToDo.Boards.Task do
     field :waiting, :boolean, default: false
 
     belongs_to :category, ToDo.Boards.Category
+    belongs_to :prior_category, ToDo.Boards.Category
     belongs_to :created_by, ToDo.Accounts.User
     has_many :task_shares, ToDo.Boards.TaskShare
 
@@ -39,6 +40,7 @@ defmodule ToDo.Boards.Task do
       :repeat_until,
       :waiting,
       :category_id,
+      :prior_category_id,
       :created_by_id
     ])
     |> normalize_repeat()
