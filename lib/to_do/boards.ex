@@ -230,7 +230,39 @@ defmodule ToDo.Boards do
     attrs = maybe_relocate_to_waiting(task, attrs)
     attrs = maybe_relocate_from_waiting(task, attrs)
     attrs = maybe_assign_position(task, attrs)
-    task |> Task.changeset(attrs) |> Repo.update()
+
+    case task |> Task.changeset(attrs) |> Repo.update() do
+      {:ok, updated} = ok ->
+        cleanup_emptied_waiting_mirror(task.category_id, updated.category_id)
+        ok
+
+      error ->
+        error
+    end
+  end
+
+  # When a task moves OUT of a mirror column under the Waiting group
+  # and that mirror is now empty (no tasks of any kind — including
+  # soft-deleted ones in Trash, which still hold the FK), prune the
+  # mirror. Mirror = non-waiting column whose parent group is the
+  # Waiting group. User-created columns flagged waiting=true are left
+  # alone, and we never touch the Waiting group itself.
+  defp cleanup_emptied_waiting_mirror(old_cat_id, new_cat_id)
+       when not is_nil(old_cat_id) and old_cat_id != new_cat_id do
+    with %Category{parent_id: parent_id, waiting: false} = col when not is_nil(parent_id) <-
+           Repo.get(Category, old_cat_id),
+         %Category{waiting: true} <- Repo.get(Category, parent_id),
+         0 <- count_tasks_in_category(col.id) do
+      Repo.delete(col)
+    end
+
+    :ok
+  end
+
+  defp cleanup_emptied_waiting_mirror(_, _), do: :ok
+
+  defp count_tasks_in_category(category_id) do
+    Repo.aggregate(from(t in Task, where: t.category_id == ^category_id), :count)
   end
 
   # When a task is being saved with `waiting: true` AND it isn't already
@@ -275,8 +307,6 @@ defmodule ToDo.Boards do
   # to a same-named non-waiting column on the same board for tasks
   # that pre-date the prior-tracking column (or for users restoring
   # tasks through other paths). Clears `prior_category_id` once moved.
-  defp maybe_relocate_from_waiting(nil, attrs), do: attrs
-
   defp maybe_relocate_from_waiting(%Task{} = task, attrs) do
     if explicit_unwait?(attrs) and currently_in_waiting?(task) do
       destination = restore_target(task)
