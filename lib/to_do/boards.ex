@@ -136,6 +136,7 @@ defmodule ToDo.Boards do
   # -- Categories --
 
   def create_category(attrs) do
+    attrs = maybe_reparent_column_to_waiting(nil, attrs)
     attrs = Map.put_new_lazy(attrs, "position", fn -> next_category_position(attrs) end)
     %Category{} |> Category.changeset(attrs) |> Repo.insert()
   end
@@ -153,7 +154,57 @@ defmodule ToDo.Boards do
   defp next_category_position(_), do: 0
 
   def update_category(%Category{} = category, attrs) do
+    attrs = maybe_reparent_column_to_waiting(category, attrs)
     category |> Category.changeset(attrs) |> Repo.update()
+  end
+
+  # Column-level Waiting flag: when a column (parent_id present) is
+  # saved with `waiting: true` AND its parent is NOT the board's
+  # Waiting group, re-parent it under the Waiting group. The group is
+  # created on demand. Top-level categories (groups themselves) are
+  # untouched — a group with waiting=true IS the Waiting group, not a
+  # column that wants to live inside one.
+  defp maybe_reparent_column_to_waiting(existing, attrs) do
+    if truthy_waiting?(attrs) do
+      parent_id =
+        case Map.get(attrs, "parent_id") || Map.get(attrs, :parent_id) do
+          nil -> existing && existing.parent_id
+          "" -> existing && existing.parent_id
+          id -> to_int(id)
+        end
+
+      board_id =
+        case Map.get(attrs, "board_id") || Map.get(attrs, :board_id) do
+          nil -> existing && existing.board_id
+          "" -> existing && existing.board_id
+          id -> to_int(id)
+        end
+
+      cond do
+        is_nil(parent_id) ->
+          # Top-level category — this IS a group, not a column. Leave alone.
+          attrs
+
+        is_nil(board_id) ->
+          attrs
+
+        true ->
+          waiting_group = find_or_create_waiting_group(board_id)
+
+          if parent_id == waiting_group.id do
+            attrs
+          else
+            attrs
+            |> Map.put("parent_id", to_string(waiting_group.id))
+            |> Map.put("position", next_category_position(%{
+              "board_id" => board_id,
+              "parent_id" => waiting_group.id
+            }))
+          end
+      end
+    else
+      attrs
+    end
   end
 
   def delete_category(%Category{} = category), do: Repo.delete(category)

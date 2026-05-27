@@ -622,24 +622,8 @@ defmodule ToDoWeb.BoardLive.Show do
     Calendar.strftime(dt, "%Y-%m-%dT%H:%M")
   end
 
-  # When there's no group filter, hide non-waiting groups whose visible
-  # columns are all empty — so an emptied "Doing" column under "Work"
-  # doesn't linger after the task gets relocated to Waiting > Doing.
-  # The Waiting group (and any group with `waiting: true`) stays
-  # visible even when empty so the user always has a stable destination.
-  defp visible_groups(groups, nil), do: Enum.filter(groups, &group_visible?/1)
+  defp visible_groups(groups, nil), do: groups
   defp visible_groups(groups, id), do: Enum.filter(groups, &(&1.id == id))
-
-  defp group_visible?(group) do
-    group.waiting or Enum.any?(group.children, &column_visible?/1)
-  end
-
-  defp column_visible?(col) do
-    col.waiting or col.tasks != []
-  end
-
-  # Used in the template to render only non-empty (or waiting-flagged) columns.
-  defp visible_columns(children), do: Enum.filter(children, &column_visible?/1)
 
   defp repeat_options do
     [
@@ -1062,7 +1046,7 @@ defmodule ToDoWeb.BoardLive.Show do
                   :if={@can_edit?}
                   phx-click="edit_group"
                   phx-value-id={group.id}
-                  class="flex-1 text-left px-3 py-2 hover:bg-white/10 transition cursor-pointer flex items-center gap-2"
+                  class="flex-1 text-left px-3 py-2 hover:bg-white/10 transition rounded-tr cursor-pointer flex items-center gap-2"
                   title="Click to edit group"
                 >
                   <span class="flex-1">{group.name}</span>
@@ -1071,49 +1055,6 @@ defmodule ToDoWeb.BoardLive.Show do
                 <div :if={!@can_edit?} class="flex-1 px-3 py-2 flex items-center gap-2">
                   <span class="flex-1">{group.name}</span>
                   <span :if={group.waiting} class="text-xs opacity-80" title="Waiting group">⏳</span>
-                </div>
-                <%!-- Add-task picker. Surfaces *every* column in the group
-                     (including ones currently hidden from the board because
-                     they're empty + non-waiting) so the user can still drop
-                     a task into them without having to recreate the column. --%>
-                <div
-                  :if={@can_edit? and group.children != []}
-                  class="dropdown dropdown-end"
-                >
-                  <div
-                    tabindex="0"
-                    role="button"
-                    class="px-3 py-2 hover:bg-white/10 transition rounded-tr cursor-pointer flex items-center"
-                    title="Add task to any column in this group"
-                    aria-label="Add task to a column in this group"
-                  >
-                    <.icon name="hero-plus" class="size-4" />
-                  </div>
-                  <ul
-                    tabindex="0"
-                    class="dropdown-content menu bg-base-100 text-base-content rounded-box z-10 mt-2 w-56 p-2 shadow border border-base-300"
-                  >
-                    <li class="menu-title">
-                      <span>Add task to…</span>
-                    </li>
-                    <li :for={col <- Enum.sort_by(group.children, & &1.position)}>
-                      <button
-                        type="button"
-                        onmousedown="event.preventDefault()"
-                        phx-click="show_new_task"
-                        phx-value-category_id={col.id}
-                        class="flex items-center justify-between gap-2 w-full"
-                      >
-                        <span class="flex items-center gap-2 truncate">
-                          <span class="truncate">{col.name}</span>
-                          <span :if={col.waiting} class="text-xs opacity-60" title="Waiting column">⏳</span>
-                        </span>
-                        <span class="text-xs text-base-content/50 shrink-0">
-                          {length(col.tasks)}
-                        </span>
-                      </button>
-                    </li>
-                  </ul>
                 </div>
               </div>
 
@@ -1125,7 +1066,7 @@ defmodule ToDoWeb.BoardLive.Show do
                 class="flex flex-col gap-2 md:flex-row md:items-start min-h-[80px]"
               >
                 <div
-                  :for={sub <- visible_columns(group.children)}
+                  :for={sub <- group.children}
                   data-category-id={sub.id}
                   class="w-full md:w-64 bg-base-100 rounded-lg shadow-sm border border-base-300 flex flex-col group/col"
                 >
