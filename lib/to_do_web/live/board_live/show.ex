@@ -1062,7 +1062,7 @@ defmodule ToDoWeb.BoardLive.Show do
                   :if={@can_edit?}
                   phx-click="edit_group"
                   phx-value-id={group.id}
-                  class="flex-1 text-left px-3 py-2 hover:bg-white/10 transition rounded-tr cursor-pointer flex items-center gap-2"
+                  class="flex-1 text-left px-3 py-2 hover:bg-white/10 transition cursor-pointer flex items-center gap-2"
                   title="Click to edit group"
                 >
                   <span class="flex-1">{group.name}</span>
@@ -1071,6 +1071,49 @@ defmodule ToDoWeb.BoardLive.Show do
                 <div :if={!@can_edit?} class="flex-1 px-3 py-2 flex items-center gap-2">
                   <span class="flex-1">{group.name}</span>
                   <span :if={group.waiting} class="text-xs opacity-80" title="Waiting group">⏳</span>
+                </div>
+                <%!-- Add-task picker. Surfaces *every* column in the group
+                     (including ones currently hidden from the board because
+                     they're empty + non-waiting) so the user can still drop
+                     a task into them without having to recreate the column. --%>
+                <div
+                  :if={@can_edit? and group.children != []}
+                  class="dropdown dropdown-end"
+                >
+                  <div
+                    tabindex="0"
+                    role="button"
+                    class="px-3 py-2 hover:bg-white/10 transition rounded-tr cursor-pointer flex items-center"
+                    title="Add task to any column in this group"
+                    aria-label="Add task to a column in this group"
+                  >
+                    <.icon name="hero-plus" class="size-4" />
+                  </div>
+                  <ul
+                    tabindex="0"
+                    class="dropdown-content menu bg-base-100 text-base-content rounded-box z-10 mt-2 w-56 p-2 shadow border border-base-300"
+                  >
+                    <li class="menu-title">
+                      <span>Add task to…</span>
+                    </li>
+                    <li :for={col <- Enum.sort_by(group.children, & &1.position)}>
+                      <button
+                        type="button"
+                        onmousedown="event.preventDefault()"
+                        phx-click="show_new_task"
+                        phx-value-category_id={col.id}
+                        class="flex items-center justify-between gap-2 w-full"
+                      >
+                        <span class="flex items-center gap-2 truncate">
+                          <span class="truncate">{col.name}</span>
+                          <span :if={col.waiting} class="text-xs opacity-60" title="Waiting column">⏳</span>
+                        </span>
+                        <span class="text-xs text-base-content/50 shrink-0">
+                          {length(col.tasks)}
+                        </span>
+                      </button>
+                    </li>
+                  </ul>
                 </div>
               </div>
 
