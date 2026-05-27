@@ -163,6 +163,7 @@ defmodule ToDo.Boards do
   # -- Tasks --
 
   def create_task(attrs) do
+    attrs = maybe_relocate_to_waiting(nil, attrs)
     attrs = Map.put_new_lazy(attrs, "position", fn -> next_task_position(attrs) end)
     %Task{} |> Task.changeset(attrs) |> Repo.insert()
   end
@@ -175,7 +176,138 @@ defmodule ToDo.Boards do
   defp next_task_position(_), do: 0
 
   def update_task(%Task{} = task, attrs) do
+    attrs = maybe_relocate_to_waiting(task, attrs)
+    attrs = maybe_assign_position(task, attrs)
     task |> Task.changeset(attrs) |> Repo.update()
+  end
+
+  # When a task is being saved with `waiting: true` AND it isn't already
+  # inside a waiting group, re-home it to the board's Waiting group
+  # (creating that group on demand) under a column that mirrors the
+  # source column's name (also created on demand). Idempotent for tasks
+  # already in a waiting group — they keep their existing category.
+  defp maybe_relocate_to_waiting(task_or_nil, attrs) do
+    if truthy_waiting?(attrs) do
+      source_cat_id =
+        case Map.get(attrs, "category_id") || Map.get(attrs, :category_id) do
+          nil -> task_or_nil && task_or_nil.category_id
+          "" -> task_or_nil && task_or_nil.category_id
+          id -> to_int(id)
+        end
+
+      case source_cat_id && Repo.get(Category, source_cat_id) do
+        nil ->
+          attrs
+
+        %Category{} = source_cat ->
+          if in_waiting_group?(source_cat) do
+            attrs
+          else
+            waiting_col = find_or_create_waiting_column(source_cat)
+            Map.put(attrs, "category_id", to_string(waiting_col.id))
+          end
+      end
+    else
+      attrs
+    end
+  end
+
+  # Whenever an update moves the task to a NEW category, append it at
+  # the bottom of that column rather than carrying the old position
+  # number across (which could collide or surface at a strange index).
+  defp maybe_assign_position(%Task{category_id: old_cat_id}, attrs) do
+    new_cat_id =
+      case Map.get(attrs, "category_id") || Map.get(attrs, :category_id) do
+        nil -> nil
+        "" -> nil
+        id -> to_int(id)
+      end
+
+    if new_cat_id && new_cat_id != old_cat_id do
+      Map.put(attrs, "position", next_task_position(%{"category_id" => new_cat_id}))
+    else
+      attrs
+    end
+  end
+
+  defp truthy_waiting?(attrs) do
+    case Map.get(attrs, "waiting") || Map.get(attrs, :waiting) do
+      true -> true
+      "true" -> true
+      _ -> false
+    end
+  end
+
+  # Top-level categories with `waiting: true` ARE the waiting group.
+  # For columns (parent_id present), the column is "in" a waiting group
+  # if either the column or its parent group carries the flag.
+  defp in_waiting_group?(%Category{parent_id: nil, waiting: w}), do: w
+
+  defp in_waiting_group?(%Category{parent_id: parent_id, waiting: w}) do
+    w or
+      case Repo.get(Category, parent_id) do
+        nil -> false
+        %Category{waiting: pw} -> pw
+      end
+  end
+
+  # Source can be a column (preferred) or a group. From a column we
+  # mirror the column's name into the waiting group. From a group we
+  # fall back to a generic "Waiting" column (no source column to mirror).
+  defp find_or_create_waiting_column(%Category{board_id: board_id, parent_id: nil}) do
+    waiting_group = find_or_create_waiting_group(board_id)
+    find_or_create_named_subcolumn(waiting_group, "Waiting")
+  end
+
+  defp find_or_create_waiting_column(%Category{board_id: board_id, name: source_name}) do
+    waiting_group = find_or_create_waiting_group(board_id)
+    find_or_create_named_subcolumn(waiting_group, source_name)
+  end
+
+  defp find_or_create_waiting_group(board_id) do
+    query =
+      from c in Category,
+        where: c.board_id == ^board_id and is_nil(c.parent_id) and c.waiting == true,
+        limit: 1
+
+    case Repo.one(query) do
+      nil ->
+        {:ok, group} =
+          create_category(%{
+            "board_id" => to_string(board_id),
+            "name" => "Waiting",
+            "color" => "#94a3b8",
+            "waiting" => "true"
+          })
+
+        group
+
+      group ->
+        group
+    end
+  end
+
+  defp find_or_create_named_subcolumn(%Category{id: parent_id, board_id: board_id}, name) do
+    query =
+      from c in Category,
+        where: c.parent_id == ^parent_id and c.name == ^name,
+        limit: 1
+
+    case Repo.one(query) do
+      nil ->
+        {:ok, col} =
+          create_category(%{
+            "board_id" => to_string(board_id),
+            "name" => name,
+            "parent_id" => to_string(parent_id),
+            "waiting" => "false"
+          })
+
+        col
+
+      col ->
+        col
+    end
   end
 
   @doc """
