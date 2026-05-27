@@ -622,8 +622,24 @@ defmodule ToDoWeb.BoardLive.Show do
     Calendar.strftime(dt, "%Y-%m-%dT%H:%M")
   end
 
-  defp visible_groups(groups, nil), do: groups
+  # When there's no group filter, hide non-waiting groups whose visible
+  # columns are all empty — so an emptied "Doing" column under "Work"
+  # doesn't linger after the task gets relocated to Waiting > Doing.
+  # The Waiting group (and any group with `waiting: true`) stays
+  # visible even when empty so the user always has a stable destination.
+  defp visible_groups(groups, nil), do: Enum.filter(groups, &group_visible?/1)
   defp visible_groups(groups, id), do: Enum.filter(groups, &(&1.id == id))
+
+  defp group_visible?(group) do
+    group.waiting or Enum.any?(group.children, &column_visible?/1)
+  end
+
+  defp column_visible?(col) do
+    col.waiting or col.tasks != []
+  end
+
+  # Used in the template to render only non-empty (or waiting-flagged) columns.
+  defp visible_columns(children), do: Enum.filter(children, &column_visible?/1)
 
   defp repeat_options do
     [
@@ -1066,7 +1082,7 @@ defmodule ToDoWeb.BoardLive.Show do
                 class="flex flex-col gap-2 md:flex-row md:items-start min-h-[80px]"
               >
                 <div
-                  :for={sub <- group.children}
+                  :for={sub <- visible_columns(group.children)}
                   data-category-id={sub.id}
                   class="w-full md:w-64 bg-base-100 rounded-lg shadow-sm border border-base-300 flex flex-col group/col"
                 >
