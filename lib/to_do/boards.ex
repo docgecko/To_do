@@ -212,8 +212,64 @@ defmodule ToDo.Boards do
 
   defp advance_due_at(%DateTime{} = dt, "day", n), do: DateTime.shift(dt, day: n)
   defp advance_due_at(%DateTime{} = dt, "week", n), do: DateTime.shift(dt, day: 7 * n)
-  defp advance_due_at(%DateTime{} = dt, "month", n), do: DateTime.shift(dt, month: n)
   defp advance_due_at(%DateTime{} = dt, "year", n), do: DateTime.shift(dt, year: n)
+
+  # Monthly repeat — track day-of-week + ordinal-within-month, not the
+  # date number. "Last Tuesday of May" repeats to "last Tuesday of
+  # June", and "2nd Friday" stays "2nd Friday" — much closer to how
+  # people actually mean "monthly" for meetings, club nights, chores,
+  # etc.
+  #
+  # Rule:
+  #   - If the source is the LAST <weekday> of its month (no further
+  #     instance of that weekday inside the same month), the target is
+  #     the LAST <weekday> of the target month.
+  #   - Otherwise compute `nth = ceil(day / 7)` — the Nth <weekday> of
+  #     the source month — and find the Nth <weekday> of the target
+  #     month. If the target month doesn't have that many (e.g. source
+  #     was 5th but target only has 4), fall back to the LAST one.
+  defp advance_due_at(%DateTime{} = dt, "month", n) do
+    source_date = DateTime.to_date(dt)
+    weekday = Date.day_of_week(source_date)
+
+    # `Date.shift/2` handles year rollover & month-length clamping for us.
+    target_anchor = Date.shift(source_date, month: n)
+
+    next_same_weekday = Date.add(source_date, 7)
+    last_of_month? = next_same_weekday.month != source_date.month
+
+    target_date =
+      if last_of_month? do
+        last_weekday_of_month(target_anchor.year, target_anchor.month, weekday)
+      else
+        nth = div(source_date.day - 1, 7) + 1
+
+        nth_weekday_of_month(target_anchor.year, target_anchor.month, weekday, nth) ||
+          last_weekday_of_month(target_anchor.year, target_anchor.month, weekday)
+      end
+
+    %{dt | year: target_date.year, month: target_date.month, day: target_date.day}
+  end
+
+  # Nth occurrence of `weekday` (1=Mon..7=Sun) in (year, month). Returns
+  # nil if the month doesn't contain that many — caller falls back to
+  # `last_weekday_of_month`.
+  defp nth_weekday_of_month(year, month, weekday, nth) do
+    first = Date.new!(year, month, 1)
+    offset = Integer.mod(weekday - Date.day_of_week(first), 7)
+    day = 1 + offset + (nth - 1) * 7
+
+    if day <= Date.days_in_month(first) do
+      Date.new!(year, month, day)
+    end
+  end
+
+  defp last_weekday_of_month(year, month, weekday) do
+    last_day = Date.days_in_month(Date.new!(year, month, 1))
+    last = Date.new!(year, month, last_day)
+    offset = Integer.mod(Date.day_of_week(last) - weekday, 7)
+    Date.new!(year, month, last_day - offset)
+  end
 
   def delete_task(%Task{} = task) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
