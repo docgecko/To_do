@@ -37,6 +37,13 @@ defmodule ToDoWeb.BoardLive.Show do
         v -> String.to_integer(v)
       end
 
+    # If the URL id has changed since mount (a patch across boards, or
+    # any nav path that reuses the LV instance), refetch the board so
+    # @board matches the URL. Otherwise the page renders the previous
+    # board's groups/columns at the new URL — which shows up as
+    # "empty" or partial content until the user navigates away and back.
+    socket = maybe_reload_board_for_url(socket, params["id"])
+
     socket =
       socket
       |> assign(:filter_group_id, filter)
@@ -69,6 +76,29 @@ defmodule ToDoWeb.BoardLive.Show do
   end
 
   defp maybe_set_return_to(socket, _), do: socket
+
+  # Refetch @board when the URL's :id no longer matches. Handles the case
+  # where the LV is reused across board ids (e.g. sidebar patch navigation
+  # or any future in-place board switch): without this, @board reflects
+  # the board mount saw and the page renders the wrong board's data.
+  defp maybe_reload_board_for_url(socket, nil), do: socket
+
+  defp maybe_reload_board_for_url(socket, id_str) when is_binary(id_str) do
+    case Integer.parse(id_str) do
+      {id, ""} when id != socket.assigns.board.id ->
+        user_id = socket.assigns.current_scope.user.id
+        board = Boards.get_visible_board!(id, user_id) |> Boards.load_board()
+
+        socket
+        |> assign(:board, board)
+        |> assign(:permission, board.permission)
+        |> assign(:can_edit?, board.permission in ["owner", "edit"])
+        |> assign(:is_owner?, board.permission == "owner")
+
+      _ ->
+        socket
+    end
+  end
 
   # Drives both ?edit=… and ?new=… deep-links. The smart-list views
   # navigate to `/boards/<id>?new=task:<column-id>` for their per-column
