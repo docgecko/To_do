@@ -1035,7 +1035,10 @@ defmodule ToDoWeb.BoardLive.Show do
       </.form_modal>
 
       <div class="space-y-4">
-        <div class="pb-8">
+        <%!-- overflow-x-auto scopes horizontal kanban scroll to this
+             region so it doesn't propagate up to <main> and drag the
+             board header sideways. --%>
+        <div class="pb-8 overflow-x-auto">
           <%!--
             Layout pivot at the `md` breakpoint:
               * Mobile (< md): groups stack vertically full-width, columns

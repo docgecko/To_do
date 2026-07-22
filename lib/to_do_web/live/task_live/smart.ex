@@ -332,7 +332,12 @@ defmodule ToDoWeb.TaskLive.Smart do
 
         <div :if={@view == :board and @rows != []} class="space-y-8">
           <section :for={b <- @grouped} class="space-y-3">
-            <div class="pb-4">
+            <%!-- overflow-x-auto sits here so the horizontal kanban scroll
+                 is contained inside this section rather than propagating up
+                 to <main>. Without this, wide boards drag the header row
+                 (subtitle + List/Boards toggle) sideways with them, since
+                 the shell's <main> also overflows horizontally. --%>
+            <div class="pb-4 overflow-x-auto">
               <%!-- Same layout pivot as board_live/show.ex: groups stack
                    vertically and fill the viewport on mobile (so a kanban
                    board is actually readable on a phone); switches to the
