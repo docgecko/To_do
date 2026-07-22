@@ -336,8 +336,13 @@ defmodule ToDoWeb.TaskLive.Smart do
                  is contained inside this section rather than propagating up
                  to <main>. Without this, wide boards drag the header row
                  (subtitle + List/Boards toggle) sideways with them, since
-                 the shell's <main> also overflows horizontally. --%>
-            <div class="pb-4 overflow-x-auto">
+                 the shell's <main> also overflows horizontally.
+
+                 md:min-h-… pushes the scroll container down to (roughly)
+                 the bottom of the viewport when the tallest column is
+                 short, so the horizontal scrollbar is always in reach
+                 instead of hovering right under the last task card. --%>
+            <div class="pb-4 overflow-x-auto md:min-h-[calc(100vh-11rem)]">
               <%!-- Same layout pivot as board_live/show.ex: groups stack
                    vertically and fill the viewport on mobile (so a kanban
                    board is actually readable on a phone); switches to the
