@@ -338,11 +338,13 @@ defmodule ToDoWeb.TaskLive.Smart do
                  (subtitle + List/Boards toggle) sideways with them, since
                  the shell's <main> also overflows horizontally.
 
-                 md:min-h-… pushes the scroll container down to (roughly)
-                 the bottom of the viewport when the tallest column is
-                 short, so the horizontal scrollbar is always in reach
-                 instead of hovering right under the last task card. --%>
-            <div class="pb-4 overflow-x-auto md:min-h-[calc(100vh-11rem)]">
+                 md:min-h-… stretches the scroll container so its bottom
+                 (where the horizontal scrollbar lives) reaches the
+                 viewport floor even when columns are short. The
+                 negative bottom margin cancels <main>'s p-6 padding so
+                 the scrollbar sits right at the viewport edge instead
+                 of hovering ~24px above it. --%>
+            <div class="pb-4 overflow-x-auto md:min-h-[calc(100vh-8rem)] md:-mb-6">
               <%!-- Same layout pivot as board_live/show.ex: groups stack
                    vertically and fill the viewport on mobile (so a kanban
                    board is actually readable on a phone); switches to the

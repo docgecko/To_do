@@ -1038,10 +1038,11 @@ defmodule ToDoWeb.BoardLive.Show do
         <%!-- overflow-x-auto scopes horizontal kanban scroll to this
              region so it doesn't propagate up to <main> and drag the
              board header sideways. md:min-h-… stretches this container
-             to (roughly) viewport bottom so the horizontal scrollbar
-             is always in reach instead of hovering just under the
-             tallest column when tasks are short. --%>
-        <div class="pb-8 overflow-x-auto md:min-h-[calc(100vh-11rem)]">
+             so its bottom (where the horizontal scrollbar lives)
+             reaches the viewport floor even when columns are short.
+             The negative bottom margin cancels <main>'s p-6 padding
+             so the scrollbar sits at the viewport edge. --%>
+        <div class="pb-8 overflow-x-auto md:min-h-[calc(100vh-8rem)] md:-mb-6">
           <%!--
             Layout pivot at the `md` breakpoint:
               * Mobile (< md): groups stack vertically full-width, columns
