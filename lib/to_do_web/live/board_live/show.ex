@@ -1042,7 +1042,7 @@ defmodule ToDoWeb.BoardLive.Show do
              reaches the viewport floor even when columns are short.
              The negative bottom margin cancels <main>'s p-6 padding
              so the scrollbar sits at the viewport edge. --%>
-        <div class="pb-8 overflow-x-auto md:min-h-[calc(100vh-8rem)] md:-mb-6">
+        <div class="pb-8 overflow-x-auto md:min-h-[calc(100vh-7rem)] md:-mb-6">
           <%!--
             Layout pivot at the `md` breakpoint:
               * Mobile (< md): groups stack vertically full-width, columns

@@ -344,7 +344,7 @@ defmodule ToDoWeb.TaskLive.Smart do
                  negative bottom margin cancels <main>'s p-6 padding so
                  the scrollbar sits right at the viewport edge instead
                  of hovering ~24px above it. --%>
-            <div class="pb-4 overflow-x-auto md:min-h-[calc(100vh-8rem)] md:-mb-6">
+            <div class="pb-4 overflow-x-auto md:min-h-[calc(100vh-7rem)] md:-mb-6">
               <%!-- Same layout pivot as board_live/show.ex: groups stack
                    vertically and fill the viewport on mobile (so a kanban
                    board is actually readable on a phone); switches to the
