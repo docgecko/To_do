@@ -41,9 +41,11 @@ defmodule ToDo.Boards do
 
   @doc """
   Returns the board the sidebar should treat as "current" for a given user.
-  Prefers the user's `last_board_id` if it points at a still-visible board;
-  otherwise falls back to the first board the user owns or has shared access
-  to. Returns `nil` if the user has no boards at all.
+  Prefers the user's `last_board_id` when it points at a still-visible
+  board that HAS AT LEAST ONE GROUP — otherwise the sidebar's "Board: X
+  > All" block would render with no group items below it and hide the
+  user's real work behind the wrong board. Falls back to the first
+  populated board they can see, then any accessible board, then nil.
   """
   def sidebar_board_for_user(%User{id: user_id}), do: sidebar_board_for_user(user_id)
 
@@ -56,10 +58,11 @@ defmodule ToDo.Boards do
       |> Repo.one()
 
     with id when not is_nil(id) <- last_id,
-         %Board{} = board <- visible_board(id, user_id) do
+         %Board{} = board <- visible_board(id, user_id),
+         true <- board_has_groups?(board.id) do
       board
     else
-      _ -> first_accessible_board(user_id)
+      _ -> first_populated_board(user_id) || first_accessible_board(user_id)
     end
   end
 
@@ -68,6 +71,47 @@ defmodule ToDo.Boards do
       nil -> nil
       board -> if board_permission(board, user_id) == :none, do: nil, else: board
     end
+  end
+
+  defp board_has_groups?(board_id) do
+    from(c in Category,
+      where: c.board_id == ^board_id and is_nil(c.parent_id),
+      select: 1,
+      limit: 1
+    )
+    |> Repo.one()
+    |> is_integer()
+  end
+
+  # Prefer a board with at least one group. Own boards first (by
+  # position, then inserted_at); if none of the owned boards are
+  # populated, try shared ones (alphabetical by name). Returns nil if
+  # no accessible board has any groups.
+  defp first_populated_board(user_id) do
+    owned =
+      from(b in Board,
+        join: c in Category,
+        on: c.board_id == b.id and is_nil(c.parent_id),
+        where: b.owner_id == ^user_id,
+        distinct: b.id,
+        order_by: [asc: b.position, asc: b.inserted_at],
+        limit: 1
+      )
+      |> Repo.one()
+
+    owned ||
+      from(b in Board,
+        join: s in BoardShare,
+        on: s.board_id == b.id,
+        join: c in Category,
+        on: c.board_id == b.id and is_nil(c.parent_id),
+        where: s.user_id == ^user_id,
+        distinct: b.id,
+        select: %{b | permission: s.permission},
+        order_by: [asc: b.name],
+        limit: 1
+      )
+      |> Repo.one()
   end
 
   defp first_accessible_board(user_id) do
