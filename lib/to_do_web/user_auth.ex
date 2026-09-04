@@ -289,21 +289,29 @@ defmodule ToDoWeb.UserAuth do
   # paused goals with progress fractions) for the shell sidebar. Loaded
   # here rather than in every LV so any view gets the Goals nav for free.
   def on_mount(:mount_sidebar_goals, _params, _session, socket) do
+    {:cont, refresh_sidebar_goals(socket)}
+  end
+
+  @doc """
+  (Re)loads the sidebar Goals block assigns. LiveViews that mutate goals
+  or task completion (which moves a goal's done/total fraction) call this
+  after the write so the sidebar updates in place instead of waiting for
+  the next mount.
+  """
+  def refresh_sidebar_goals(socket) do
     case socket.assigns[:current_scope] do
       %Scope{user: %Accounts.User{id: user_id}} ->
         goals = ToDo.Goals.list_goals(user_id, status: ["active", "paused"])
         progress = ToDo.Goals.progress_for_goals(Enum.map(goals, & &1.id))
 
-        {:cont,
-         socket
-         |> Phoenix.Component.assign(:sidebar_goals, goals)
-         |> Phoenix.Component.assign(:sidebar_goal_progress, progress)}
+        socket
+        |> Phoenix.Component.assign(:sidebar_goals, goals)
+        |> Phoenix.Component.assign(:sidebar_goal_progress, progress)
 
       _ ->
-        {:cont,
-         socket
-         |> Phoenix.Component.assign(:sidebar_goals, [])
-         |> Phoenix.Component.assign(:sidebar_goal_progress, %{})}
+        socket
+        |> Phoenix.Component.assign(:sidebar_goals, [])
+        |> Phoenix.Component.assign(:sidebar_goal_progress, %{})
     end
   end
 

@@ -39,7 +39,8 @@ defmodule ToDoWeb.GoalLive.Show do
 
     if Boards.task_permission(task, user_id) in [:owner, :edit] do
       {:ok, _} = Boards.toggle_task_done(task)
-      {:noreply, load_tasks(socket)}
+      # Ticking a task moves this goal's done/total fraction in the sidebar too.
+      {:noreply, socket |> load_tasks() |> ToDoWeb.UserAuth.refresh_sidebar_goals()}
     else
       {:noreply, put_flash(socket, :error, "You only have view access to that task.")}
     end

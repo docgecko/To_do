@@ -58,6 +58,8 @@ defmodule ToDoWeb.TaskLive.Smart do
     |> assign(:rows, rows)
     |> assign(:grouped, group_by_board(rows))
     |> assign(:task_goals, Goals.goals_by_task_ids(Enum.map(rows, & &1.task.id)))
+    # Ticking a task here shifts its goals' done/total fractions in the sidebar.
+    |> ToDoWeb.UserAuth.refresh_sidebar_goals()
   end
 
   @impl true

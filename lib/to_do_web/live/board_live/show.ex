@@ -723,6 +723,8 @@ defmodule ToDoWeb.BoardLive.Show do
     socket
     |> assign(:board, board)
     |> assign_task_goals(board)
+    # Tagging/untagging or ticking a task shifts goal done/total fractions.
+    |> ToDoWeb.UserAuth.refresh_sidebar_goals()
   end
 
   defp find_group_by_id(_, nil), do: nil

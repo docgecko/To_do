@@ -52,6 +52,8 @@ defmodule ToDoWeb.GoalLive.Index do
 
   def handle_params(_params, _uri, socket), do: {:noreply, socket}
 
+  # Reloads the page's goal list AND the shell sidebar block, so a
+  # create/edit/delete shows up in the sidebar immediately.
   defp load_goals(socket) do
     user_id = socket.assigns.current_scope.user.id
     goals = Goals.list_goals(user_id)
@@ -60,6 +62,7 @@ defmodule ToDoWeb.GoalLive.Index do
     socket
     |> assign(:goals, goals)
     |> assign(:progress, progress)
+    |> ToDoWeb.UserAuth.refresh_sidebar_goals()
   end
 
   # -- modal state --
