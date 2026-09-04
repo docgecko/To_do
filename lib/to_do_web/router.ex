@@ -60,12 +60,15 @@ defmodule ToDoWeb.Router do
     live_session :require_authenticated_user,
       on_mount: [
         {ToDoWeb.UserAuth, :require_authenticated},
-        {ToDoWeb.UserAuth, :mount_notifications}
+        {ToDoWeb.UserAuth, :mount_notifications},
+        {ToDoWeb.UserAuth, :mount_sidebar_goals}
       ] do
       live "/users/settings", UserLive.Settings, :edit
       live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
       live "/boards", BoardLive.Index, :index
       live "/boards/:id", BoardLive.Show, :show
+      live "/goals", GoalLive.Index, :index
+      live "/goals/:id", GoalLive.Show, :show
       live "/shared", BoardLive.Shared, :index
       live "/today", TaskLive.Smart, :today
       live "/upcoming", TaskLive.Smart, :upcoming
@@ -78,7 +81,8 @@ defmodule ToDoWeb.Router do
     live_session :require_admin,
       on_mount: [
         {ToDoWeb.UserAuth, :require_admin},
-        {ToDoWeb.UserAuth, :mount_notifications}
+        {ToDoWeb.UserAuth, :mount_notifications},
+        {ToDoWeb.UserAuth, :mount_sidebar_goals}
       ] do
       live "/admin/invite-requests", AdminLive.InviteRequests, :index
     end

@@ -8,7 +8,7 @@ defmodule ToDoWeb.UserLive.Settings do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.shell flash={@flash} current_scope={@current_scope} page_title="Settings" unread_notifications={@unread_notifications} recent_notifications={@recent_notifications}>
+    <Layouts.shell flash={@flash} current_scope={@current_scope} page_title="Settings" unread_notifications={@unread_notifications} recent_notifications={@recent_notifications} sidebar_goals={@sidebar_goals} sidebar_goal_progress={@sidebar_goal_progress}>
       <div class="max-w-xl mx-auto space-y-6">
       <div class="text-center">
         <.header>

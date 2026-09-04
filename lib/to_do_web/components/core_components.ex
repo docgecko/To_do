@@ -212,6 +212,29 @@ defmodule ToDoWeb.CoreComponents do
   end
 
   @doc """
+  Chip row for a task's goal tags. Renders nothing for nil/[] so callers
+  can pass `@task_goals[task.id]` straight through without guards.
+  Clicking a chip navigates to that goal's page.
+  """
+  attr :goals, :list, default: nil
+
+  def goal_chips(assigns) do
+    ~H"""
+    <div :if={@goals not in [nil, []]} class="mt-1.5 flex flex-wrap gap-1">
+      <.link
+        :for={goal <- @goals}
+        navigate={"/goals/#{goal.id}"}
+        class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-base-200/60 text-xs text-base-content/70 hover:bg-base-300/60 hover:text-base-content max-w-[12rem]"
+        title={"Goal: #{goal.name}"}
+      >
+        <span class="w-1.5 h-1.5 rounded-full shrink-0" style={"background:#{goal.color || "#3b82f6"}"} />
+        <span class="truncate">{goal.name}</span>
+      </.link>
+    </div>
+    """
+  end
+
+  @doc """
   Renders a button with navigation support.
 
   ## Examples

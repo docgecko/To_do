@@ -2,6 +2,7 @@ defmodule ToDoWeb.TaskLive.Smart do
   use ToDoWeb, :live_view
 
   alias ToDo.Boards
+  alias ToDo.Goals
 
   @titles %{
     today: "Today",
@@ -44,11 +45,19 @@ defmodule ToDoWeb.TaskLive.Smart do
     {:noreply,
      socket
      |> assign(:scope, scope)
-     |> assign(:rows, rows)
      |> assign(:view, view)
-     |> assign(:grouped, group_by_board(rows))
      |> assign(:title, Map.fetch!(@titles, scope))
-     |> assign(:subtitle, Map.fetch!(@subtitles, scope))}
+     |> assign(:subtitle, Map.fetch!(@subtitles, scope))
+     |> assign_rows(rows)}
+  end
+
+  # Rows + everything derived from them (board grouping, goal-chip data)
+  # in one place so every event that refetches stays consistent.
+  defp assign_rows(socket, rows) do
+    socket
+    |> assign(:rows, rows)
+    |> assign(:grouped, group_by_board(rows))
+    |> assign(:task_goals, Goals.goals_by_task_ids(Enum.map(rows, & &1.task.id)))
   end
 
   @impl true
@@ -59,7 +68,7 @@ defmodule ToDoWeb.TaskLive.Smart do
     if Boards.task_permission(task, user_id) in [:owner, :edit] do
       {:ok, _} = Boards.toggle_task_done(task)
       rows = Boards.list_smart_tasks(user_id, socket.assigns.scope)
-      {:noreply, socket |> assign(:rows, rows) |> assign(:grouped, group_by_board(rows))}
+      {:noreply, assign_rows(socket, rows)}
     else
       {:noreply, put_flash(socket, :error, "You only have view access to that task.")}
     end
@@ -72,7 +81,7 @@ defmodule ToDoWeb.TaskLive.Smart do
     if Boards.task_permission(task, user_id) in [:owner, :edit] do
       {:ok, _} = Boards.restore_task(task)
       rows = Boards.list_smart_tasks(user_id, socket.assigns.scope)
-      {:noreply, socket |> assign(:rows, rows) |> assign(:grouped, group_by_board(rows))}
+      {:noreply, assign_rows(socket, rows)}
     else
       {:noreply, put_flash(socket, :error, "You only have view access to that task.")}
     end
@@ -85,7 +94,7 @@ defmodule ToDoWeb.TaskLive.Smart do
     if Boards.task_permission(task, user_id) == :owner do
       {:ok, _} = Boards.purge_task(task)
       rows = Boards.list_smart_tasks(user_id, socket.assigns.scope)
-      {:noreply, socket |> assign(:rows, rows) |> assign(:grouped, group_by_board(rows))}
+      {:noreply, assign_rows(socket, rows)}
     else
       {:noreply, put_flash(socket, :error, "Only the board owner can permanently delete a task.")}
     end
@@ -109,7 +118,7 @@ defmodule ToDoWeb.TaskLive.Smart do
       true ->
         {:ok, _} = Boards.reorder_list_tasks(user_id, scope, ids)
         rows = Boards.list_smart_tasks(user_id, scope)
-        {:noreply, socket |> assign(:rows, rows) |> assign(:grouped, group_by_board(rows))}
+        {:noreply, assign_rows(socket, rows)}
     end
   end
 
@@ -187,7 +196,7 @@ defmodule ToDoWeb.TaskLive.Smart do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.shell flash={@flash} current_scope={@current_scope} page_title={@title} active={@scope} current_board={@sidebar_board} unread_notifications={@unread_notifications} recent_notifications={@recent_notifications}>
+    <Layouts.shell flash={@flash} current_scope={@current_scope} page_title={@title} active={@scope} current_board={@sidebar_board} unread_notifications={@unread_notifications} recent_notifications={@recent_notifications} sidebar_goals={@sidebar_goals} sidebar_goal_progress={@sidebar_goal_progress}>
       <:title_extra>
         <.link
           :for={board <- header_boards(@grouped, @sidebar_board)}
@@ -326,6 +335,7 @@ defmodule ToDoWeb.TaskLive.Smart do
                   ⏳ Waiting
                 </span>
               </div>
+              <.goal_chips goals={@task_goals[row.task.id]} />
             </div>
           </li>
         </ul>
@@ -448,6 +458,7 @@ defmodule ToDoWeb.TaskLive.Smart do
                                   <span>Waiting</span>
                                 </span>
                               </div>
+                              <.goal_chips goals={@task_goals[task.id]} />
                             </.link>
                             <div :if={@scope == :trash} class="flex-1 min-w-0">
                               <div class={["break-words leading-tight", task.done && "line-through text-base-content/50"]}>

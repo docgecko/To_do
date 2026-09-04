@@ -3,6 +3,7 @@ defmodule ToDoWeb.BoardLive.Show do
 
   alias ToDo.Boards
   alias ToDo.Boards.{Category, Task}
+  alias ToDo.Goals
   alias ToDoWeb.ShareDialog
 
   @group_presets ~w(#fbbf24 #f97316 #f43f5e #ec4899 #8b5cf6 #3b82f6 #10b981 #64748b)
@@ -25,7 +26,18 @@ defmodule ToDoWeb.BoardLive.Show do
      |> assign(:filter_group_id, nil)
      |> assign(:share_target, nil)
      |> assign(:group_presets, @group_presets)
+     |> assign(:my_goals, Goals.list_active_goals(user.id))
+     |> assign_task_goals(board)
      |> close_modal()}
+  end
+
+  # Chip data: goals tagged on every task currently on the board, batched
+  # into one query. Re-run whenever the board reloads.
+  defp assign_task_goals(socket, board) do
+    task_ids =
+      for group <- board.groups, col <- group.children, task <- col.tasks, do: task.id
+
+    assign(socket, :task_goals, Goals.goals_by_task_ids(task_ids))
   end
 
   @impl true
@@ -94,6 +106,7 @@ defmodule ToDoWeb.BoardLive.Show do
         |> assign(:permission, board.permission)
         |> assign(:can_edit?, board.permission in ["owner", "edit"])
         |> assign(:is_owner?, board.permission == "owner")
+        |> assign_task_goals(board)
 
       _ ->
         socket
@@ -170,7 +183,8 @@ defmodule ToDoWeb.BoardLive.Show do
       "repeat_every" => "1",
       "repeat_until" => "",
       "waiting" => "false",
-      "category_id" => Integer.to_string(cid)
+      "category_id" => Integer.to_string(cid),
+      "goal_ids" => []
     }
 
     socket
@@ -524,14 +538,22 @@ defmodule ToDoWeb.BoardLive.Show do
           |> Map.put("created_by_id", user_id)
 
         case Boards.create_task(attrs) do
-          {:ok, _} -> {:noreply, socket |> close_modal() |> reload_board()}
-          {:error, cs} -> {:noreply, assign(socket, :form, to_form(cs))}
+          {:ok, task} ->
+            :ok = Goals.replace_user_goal_tags(task, user_id, params["goal_ids"])
+            {:noreply, socket |> close_modal() |> reload_board()}
+
+          {:error, cs} ->
+            {:noreply, assign(socket, :form, to_form(cs))}
         end
 
       %{kind: :task, mode: :edit, subject: subject} ->
         case Boards.update_task(subject, params) do
-          {:ok, _} -> {:noreply, socket |> close_modal() |> reload_board()}
-          {:error, cs} -> {:noreply, assign(socket, :form, to_form(cs))}
+          {:ok, task} ->
+            :ok = Goals.replace_user_goal_tags(task, user_id, params["goal_ids"])
+            {:noreply, socket |> close_modal() |> reload_board()}
+
+          {:error, cs} ->
+            {:noreply, assign(socket, :form, to_form(cs))}
         end
     end
   end
@@ -585,6 +607,8 @@ defmodule ToDoWeb.BoardLive.Show do
   end
 
   defp open_task_edit_modal(socket, %Task{} = task) do
+    user_id = socket.assigns.current_scope.user.id
+
     params = %{
       "title" => task.title || "",
       "notes" => task.notes || "",
@@ -593,7 +617,8 @@ defmodule ToDoWeb.BoardLive.Show do
       "repeat_every" => to_string(task.repeat_every || 1),
       "repeat_until" => due_input_value(task.repeat_until),
       "waiting" => to_string(task.waiting),
-      "category_id" => Integer.to_string(task.category_id)
+      "category_id" => Integer.to_string(task.category_id),
+      "goal_ids" => Goals.user_goal_ids_for_task(task.id, user_id) |> Enum.map(&to_string/1)
     }
 
     socket
@@ -694,7 +719,10 @@ defmodule ToDoWeb.BoardLive.Show do
   defp reload_board(socket) do
     user = socket.assigns.current_scope.user
     board = Boards.get_visible_board!(socket.assigns.board.id, user.id) |> Boards.load_board()
-    assign(socket, :board, board)
+
+    socket
+    |> assign(:board, board)
+    |> assign_task_goals(board)
   end
 
   defp find_group_by_id(_, nil), do: nil
@@ -722,7 +750,7 @@ defmodule ToDoWeb.BoardLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.shell flash={@flash} current_scope={@current_scope} page_title={@board.name} active={:board} current_board={@board} current_group_id={@filter_group_id} unread_notifications={@unread_notifications} recent_notifications={@recent_notifications}>
+    <Layouts.shell flash={@flash} current_scope={@current_scope} page_title={@board.name} active={:board} current_board={@board} current_group_id={@filter_group_id} unread_notifications={@unread_notifications} recent_notifications={@recent_notifications} sidebar_goals={@sidebar_goals} sidebar_goal_progress={@sidebar_goal_progress}>
       <:actions>
         <span :if={!@is_owner?} class="badge badge-info">{@permission}</span>
         <button
@@ -993,6 +1021,36 @@ defmodule ToDoWeb.BoardLive.Show do
             label="Repeat until (optional)"
           />
 
+          <%!-- Goal tags: the current user's active goals as a checkbox
+               group. Only YOUR tags are shown and managed here — a
+               collaborator's tags on this task are untouched by saving.
+               The hidden "" sentinel keeps task[goal_ids] present in the
+               submit even when every box is unchecked, so un-tagging
+               works (absent key would mean "no change" after the
+               form_params merge). --%>
+          <div :if={@my_goals != []}>
+            <label class="label pb-1.5">
+              <span class="label-text font-medium">Goals (optional)</span>
+            </label>
+            <input type="hidden" name="task[goal_ids][]" value="" />
+            <div class="space-y-1.5">
+              <label
+                :for={goal <- @my_goals}
+                class="flex items-center gap-2.5 cursor-pointer text-sm py-0.5"
+              >
+                <input
+                  type="checkbox"
+                  name="task[goal_ids][]"
+                  value={goal.id}
+                  checked={to_string(goal.id) in (@form_params["goal_ids"] || [])}
+                  class="checkbox checkbox-sm"
+                />
+                <span class="w-2 h-2 rounded shrink-0" style={"background:#{goal.color || "#3b82f6"}"} />
+                <span class="truncate">{goal.name}</span>
+              </label>
+            </div>
+          </div>
+
           <.input
             field={@form[:waiting]}
             type="checkbox"
@@ -1177,6 +1235,7 @@ defmodule ToDoWeb.BoardLive.Show do
                               <span>Waiting</span>
                             </span>
                           </div>
+                          <.goal_chips goals={@task_goals[task.id]} />
                         </button>
                         <div :if={!@can_edit?} class="flex-1 min-w-0">
                           <div class={["break-words leading-tight", task.done && "line-through text-base-content/50"]}>
@@ -1197,6 +1256,7 @@ defmodule ToDoWeb.BoardLive.Show do
                               <span>Waiting</span>
                             </span>
                           </div>
+                          <.goal_chips goals={@task_goals[task.id]} />
                         </div>
                       </div>
                     </li>

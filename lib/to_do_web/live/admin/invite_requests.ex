@@ -68,7 +68,7 @@ defmodule ToDoWeb.AdminLive.InviteRequests do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.shell flash={@flash} current_scope={@current_scope} page_title="Invite requests" unread_notifications={@unread_notifications} recent_notifications={@recent_notifications}>
+    <Layouts.shell flash={@flash} current_scope={@current_scope} page_title="Invite requests" unread_notifications={@unread_notifications} recent_notifications={@recent_notifications} sidebar_goals={@sidebar_goals} sidebar_goal_progress={@sidebar_goal_progress}>
       <div class="max-w-3xl mx-auto space-y-8">
         <div>
           <.header>

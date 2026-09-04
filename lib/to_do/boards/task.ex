@@ -19,6 +19,11 @@ defmodule ToDo.Boards.Task do
     belongs_to :created_by, ToDo.Accounts.User
     has_many :task_shares, ToDo.Boards.TaskShare
 
+    # Goal tags. Managed separately via `ToDo.Goals.replace_user_goal_tags/3`
+    # (per-user scoping) rather than through the task changeset, so a
+    # collaborator saving the task can't nuke another user's tags.
+    many_to_many :goals, ToDo.Goals.Goal, join_through: "task_goals"
+
     timestamps(type: :utc_datetime)
   end
 

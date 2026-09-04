@@ -82,6 +82,14 @@ defmodule ToDoWeb.Layouts do
     default: [],
     doc: "the user's most recent notifications, for the bell-icon dropdown"
 
+  attr :sidebar_goals, :list,
+    default: [],
+    doc: "the user's active/paused goals for the sidebar Goals block"
+
+  attr :sidebar_goal_progress, :map,
+    default: %{},
+    doc: "goal_id => {completed, total} fractions for the sidebar Goals block"
+
   slot :actions
   slot :title_extra, doc: "content rendered inline next to the page title"
   slot :inner_block, required: true
@@ -144,6 +152,38 @@ defmodule ToDoWeb.Layouts do
               <.nav_item href={~p"/waiting"} label="Waiting" icon="hero-clock" active={@active == :waiting} />
               <.nav_item href={~p"/completed"} label="Completed" icon="hero-check-circle" active={@active == :completed} />
               <.nav_item href={~p"/trash"} label="Trash" icon="hero-trash" active={@active == :trash} />
+            </div>
+            <div :if={@sidebar_goals != []} class="space-y-1">
+              <.link
+                navigate={~p"/goals"}
+                class="block px-2 text-xs font-semibold uppercase tracking-wide text-base-content/60 hover:text-base-content"
+              >
+                Goals
+              </.link>
+              <.link
+                :for={goal <- Enum.take(@sidebar_goals, 8)}
+                navigate={~p"/goals/#{goal.id}"}
+                class={[
+                  "flex items-center gap-2 px-2 py-1.5 rounded text-sm",
+                  "text-base-content/80 hover:bg-base-300/60",
+                  goal.status == "paused" && "opacity-50"
+                ]}
+                title={goal.name}
+              >
+                <span class="w-2 h-2 rounded shrink-0" style={"background:#{goal.color || "#3b82f6"}"} />
+                <span class="flex-1 truncate">{goal.name}</span>
+                <span :if={goal.status == "active"} class="text-xs text-base-content/50 shrink-0">
+                  {elem(Map.get(@sidebar_goal_progress, goal.id, {0, 0}), 0)}/{elem(Map.get(@sidebar_goal_progress, goal.id, {0, 0}), 1)}
+                </span>
+                <span :if={goal.status == "paused"} class="text-xs text-base-content/50 shrink-0">paused</span>
+              </.link>
+              <.link
+                :if={length(@sidebar_goals) > 8}
+                navigate={~p"/goals"}
+                class="block px-2 py-1 text-xs text-base-content/60 hover:text-base-content hover:underline"
+              >
+                View all →
+              </.link>
             </div>
             <div :if={@current_board} class="space-y-1">
               <div class="px-2 text-xs font-semibold uppercase tracking-wide text-base-content/60">

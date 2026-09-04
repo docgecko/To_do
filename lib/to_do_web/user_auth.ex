@@ -285,6 +285,28 @@ defmodule ToDoWeb.UserAuth do
     end
   end
 
+  # `:mount_sidebar_goals` — assigns `:sidebar_goals` (the user's active +
+  # paused goals with progress fractions) for the shell sidebar. Loaded
+  # here rather than in every LV so any view gets the Goals nav for free.
+  def on_mount(:mount_sidebar_goals, _params, _session, socket) do
+    case socket.assigns[:current_scope] do
+      %Scope{user: %Accounts.User{id: user_id}} ->
+        goals = ToDo.Goals.list_goals(user_id, status: ["active", "paused"])
+        progress = ToDo.Goals.progress_for_goals(Enum.map(goals, & &1.id))
+
+        {:cont,
+         socket
+         |> Phoenix.Component.assign(:sidebar_goals, goals)
+         |> Phoenix.Component.assign(:sidebar_goal_progress, progress)}
+
+      _ ->
+        {:cont,
+         socket
+         |> Phoenix.Component.assign(:sidebar_goals, [])
+         |> Phoenix.Component.assign(:sidebar_goal_progress, %{})}
+    end
+  end
+
   defp setup_notifications(socket, user) do
     if Phoenix.LiveView.connected?(socket) do
       ToDo.Notifications.subscribe(user.id)
