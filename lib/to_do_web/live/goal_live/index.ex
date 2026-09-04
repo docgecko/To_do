@@ -44,6 +44,12 @@ defmodule ToDoWeb.GoalLive.Index do
     end
   end
 
+  # `/goals?new=1` — deep-link from the sidebar's "+ Add goal" entry so
+  # first-time users land straight in the create modal.
+  def handle_params(%{"new" => v}, _uri, socket) when v not in [nil, ""] do
+    {:noreply, open_new_goal(socket)}
+  end
+
   def handle_params(_params, _uri, socket), do: {:noreply, socket}
 
   defp load_goals(socket) do

@@ -153,12 +153,23 @@ defmodule ToDoWeb.Layouts do
               <.nav_item href={~p"/completed"} label="Completed" icon="hero-check-circle" active={@active == :completed} />
               <.nav_item href={~p"/trash"} label="Trash" icon="hero-trash" active={@active == :trash} />
             </div>
-            <div :if={@sidebar_goals != []} class="space-y-1">
+            <%!-- Always rendered for a signed-in user (not gated on having
+                 goals) — otherwise nothing in the app links to /goals and a
+                 first-time user has no way to create one. --%>
+            <div :if={@current_scope && @current_scope.user} class="space-y-1">
               <.link
                 navigate={~p"/goals"}
                 class="block px-2 text-xs font-semibold uppercase tracking-wide text-base-content/60 hover:text-base-content"
               >
                 Goals
+              </.link>
+              <.link
+                :if={@sidebar_goals == []}
+                navigate={~p"/goals?new=1"}
+                class="flex items-center gap-2 px-2 py-1.5 rounded text-sm text-base-content/80 hover:bg-base-300/60"
+              >
+                <.icon name="hero-plus" class="size-4" />
+                <span>Add goal</span>
               </.link>
               <.link
                 :for={goal <- Enum.take(@sidebar_goals, 8)}
