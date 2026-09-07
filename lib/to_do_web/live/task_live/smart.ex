@@ -668,11 +668,11 @@ defmodule ToDoWeb.TaskLive.Smart do
             </span>
           </div>
           <div class="flex items-center gap-2 flex-wrap">
-            <div :if={@scope == :today and @view == :list} class="flex items-center gap-1">
-              <.link :if={not @has_plan?} patch={~p"/today?plan=1"} class="btn btn-sm btn-outline">
+            <div :if={@scope == :today} class="flex items-center gap-1">
+              <.link :if={not @has_plan?} patch={~p"/today?plan=1&view=#{@view}"} class="btn btn-sm btn-outline">
                 <.icon name="hero-sparkles" class="size-4" /> Plan today
               </.link>
-              <.link :if={@has_plan?} patch={~p"/today?plan=1"} class="btn btn-sm btn-ghost">
+              <.link :if={@has_plan?} patch={~p"/today?plan=1&view=#{@view}"} class="btn btn-sm btn-ghost">
                 Edit plan
               </.link>
               <button :if={@has_plan?} type="button" phx-click="open_wrap_up" class="btn btn-sm btn-outline">
@@ -711,7 +711,7 @@ defmodule ToDoWeb.TaskLive.Smart do
         <div :if={@rows == [] and @plan_rows == [] and not @planning?} class="text-center text-base-content/60 py-12">
           Nothing here.
           <div :if={@scope == :today} class="mt-3">
-            <.link patch={~p"/today?plan=1"} class="btn btn-sm btn-outline">Plan today</.link>
+            <.link patch={~p"/today?plan=1&view=#{@view}"} class="btn btn-sm btn-outline">Plan today</.link>
           </div>
         </div>
 
@@ -741,7 +741,7 @@ defmodule ToDoWeb.TaskLive.Smart do
               <h2 class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
                 Today's plan · {length(@plan_rows)} · ~{format_minutes(@coverage.total_minutes)}
               </h2>
-              <.link patch={~p"/today"} class="btn btn-primary btn-sm">Done planning</.link>
+              <.link patch={view_href(@scope, @view)} class="btn btn-primary btn-sm">Done planning</.link>
             </div>
             <.capacity_bar minutes={@coverage.total_minutes} capacity={@daily_capacity_minutes} />
             <p :if={@coverage.total > 0} class="text-xs text-base-content/60">

@@ -190,6 +190,19 @@ defmodule ToDoWeb.TaskLive.PlanningTest do
     assert is_nil(Boards.get_task!(t_anytime.id).due_at)
   end
 
+  test "Plan today is reachable from the Boards view and Done planning returns there", %{conn: conn} do
+    {:ok, lv, html} = live(conn, ~p"/today?view=board")
+    assert html =~ "Plan today"
+    assert html =~ ~s{href="/today?plan=1&amp;view=board"}
+
+    lv |> element(~s{a[href="/today?plan=1&view=board"]}) |> render_click()
+    assert render(lv) =~ "Candidates"
+
+    lv |> element("a", "Done planning") |> render_click()
+    assert_patch(lv, "/today?view=board")
+    refute render(lv) =~ "Candidates"
+  end
+
   test "another user's plan on a shared task is invisible to me", ctx do
     %{user: user, today: today, t_today: t_today} = ctx
     other = ToDo.AccountsFixtures.user_fixture()
