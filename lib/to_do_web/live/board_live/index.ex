@@ -168,6 +168,7 @@ defmodule ToDoWeb.BoardLive.Index do
       recent_notifications={@recent_notifications}
       sidebar_goals={@sidebar_goals}
       sidebar_goal_progress={@sidebar_goal_progress}
+      inbox_count={@inbox_count}
     >
       <:actions>
         <button

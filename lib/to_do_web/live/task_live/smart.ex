@@ -3,6 +3,7 @@ defmodule ToDoWeb.TaskLive.Smart do
 
   alias ToDo.Boards
   alias ToDo.Goals
+  alias ToDo.Inbox
   alias ToDo.Plans
 
   @titles %{
@@ -94,6 +95,8 @@ defmodule ToDoWeb.TaskLive.Smart do
     socket
     |> assign(:rows, rows)
     |> assign(:grouped, group_by_board(rows))
+    # Discarded Inbox items live in Trash alongside trashed tasks.
+    |> assign(:trashed_inbox, if(scope == :trash, do: Inbox.list_trashed(user.id), else: []))
     |> assign(:plan_rows, plan_rows)
     |> assign(:other_rows, other_rows)
     |> assign(:has_plan?, plan_rows != [])
@@ -195,6 +198,20 @@ defmodule ToDoWeb.TaskLive.Smart do
     else
       {:noreply, put_flash(socket, :error, "You only have view access to that task.")}
     end
+  end
+
+  # -- Trashed Inbox items --
+
+  def handle_event("restore_inbox_item", %{"id" => id}, socket) do
+    user_id = socket.assigns.current_scope.user.id
+    {:ok, _} = Inbox.restore(Inbox.get_item!(id, user_id))
+    {:noreply, refresh(socket)}
+  end
+
+  def handle_event("purge_inbox_item", %{"id" => id}, socket) do
+    user_id = socket.assigns.current_scope.user.id
+    {:ok, _} = Inbox.purge(Inbox.get_item!(id, user_id))
+    {:noreply, refresh(socket)}
   end
 
   # -- Wrap-up --
@@ -630,7 +647,7 @@ defmodule ToDoWeb.TaskLive.Smart do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.shell flash={@flash} current_scope={@current_scope} page_title={@title} active={@scope} current_board={@sidebar_board} unread_notifications={@unread_notifications} recent_notifications={@recent_notifications} sidebar_goals={@sidebar_goals} sidebar_goal_progress={@sidebar_goal_progress}>
+    <Layouts.shell flash={@flash} current_scope={@current_scope} page_title={@title} active={@scope} current_board={@sidebar_board} unread_notifications={@unread_notifications} recent_notifications={@recent_notifications} sidebar_goals={@sidebar_goals} sidebar_goal_progress={@sidebar_goal_progress} inbox_count={@inbox_count}>
       <:title_extra>
         <.link
           :for={board <- header_boards(@grouped, @sidebar_board)}
@@ -708,7 +725,7 @@ defmodule ToDoWeb.TaskLive.Smart do
           <button type="button" phx-click="open_wrap_up" class="btn btn-xs btn-ghost">Wrap up →</button>
         </div>
 
-        <div :if={@rows == [] and @plan_rows == [] and not @planning?} class="text-center text-base-content/60 py-12">
+        <div :if={@rows == [] and @plan_rows == [] and @trashed_inbox == [] and not @planning?} class="text-center text-base-content/60 py-12">
           Nothing here.
           <div :if={@scope == :today} class="mt-3">
             <.link patch={~p"/today?plan=1&view=#{@view}"} class="btn btn-sm btn-outline">Plan today</.link>
@@ -723,6 +740,19 @@ defmodule ToDoWeb.TaskLive.Smart do
         <div :if={@planning? and @candidates} class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <section class="space-y-3 order-2 lg:order-1">
             <h2 class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Candidates</h2>
+            <%!-- Inbox items aren't tasks yet, so they can't be planned —
+                 but a plan built while ignoring them isn't honest either. --%>
+            <.link
+              :if={@inbox_count > 0}
+              navigate={~p"/inbox"}
+              class="flex items-center gap-2 rounded bg-base-200 px-3 py-2 text-sm hover:bg-base-300/60"
+            >
+              <.icon name="hero-inbox-arrow-down" class="size-4 text-base-content/60" />
+              <span class="flex-1">
+                {@inbox_count} {if @inbox_count == 1, do: "item", else: "items"} in your Inbox haven't been triaged
+              </span>
+              <span class="text-primary">Process →</span>
+            </.link>
             <.candidate_group title="Overdue" rows={@candidates.overdue} scope={@scope} task_goals={@task_goals} id_prefix="cand-overdue" open />
             <.candidate_group title="Due today" rows={@candidates.due_today} scope={@scope} task_goals={@task_goals} id_prefix="cand-today" open />
             <.candidate_group title="Upcoming (next 7 days)" rows={@candidates.upcoming} scope={@scope} task_goals={@task_goals} id_prefix="cand-upcoming" />
@@ -845,6 +875,36 @@ defmodule ToDoWeb.TaskLive.Smart do
             handle_attr="data-list-drag-handle"
           />
         </ul>
+
+        <%!-- ============ Trash: discarded Inbox items ============ --%>
+        <div :if={@scope == :trash and @trashed_inbox != []} class="space-y-2">
+          <h2 class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
+            Captured items · {length(@trashed_inbox)}
+          </h2>
+          <ul class="border border-base-300 rounded divide-y divide-base-300">
+            <li :for={item <- @trashed_inbox} id={"trashed-inbox-#{item.id}"} class="flex items-start gap-3 p-3 bg-base-100">
+              <div class="flex gap-1 mt-0.5">
+                <button phx-click="restore_inbox_item" phx-value-id={item.id} class="btn btn-ghost btn-xs" title="Restore to Inbox">
+                  <.icon name="hero-arrow-uturn-left" class="size-4" />
+                </button>
+                <button
+                  phx-click="purge_inbox_item"
+                  phx-value-id={item.id}
+                  data-confirm="Permanently delete this captured item? This cannot be undone."
+                  class="btn btn-ghost btn-xs text-error"
+                  title="Delete permanently"
+                >
+                  <.icon name="hero-trash" class="size-4" />
+                </button>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="break-words leading-tight text-base-content/70">{item.title}</div>
+                <div :if={item.notes && item.notes != ""} class="text-xs text-base-content/50 leading-tight whitespace-pre-line">{item.notes}</div>
+                <div class="text-xs text-base-content/40 mt-1">discarded {Calendar.strftime(item.deleted_at, "%a %-d %b · %H:%M")}</div>
+              </div>
+            </li>
+          </ul>
+        </div>
 
         <%!-- ============ Wrap-up modal ============ --%>
         <.form_modal

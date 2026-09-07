@@ -78,6 +78,7 @@ defmodule ToDoWeb.GoalLive.Show do
       recent_notifications={@recent_notifications}
       sidebar_goals={@sidebar_goals}
       sidebar_goal_progress={@sidebar_goal_progress}
+      inbox_count={@inbox_count}
     >
       <:actions>
         <.link navigate={~p"/goals?edit=#{@goal.id}"} class="btn btn-outline btn-sm">

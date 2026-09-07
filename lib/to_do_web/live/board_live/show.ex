@@ -772,7 +772,7 @@ defmodule ToDoWeb.BoardLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.shell flash={@flash} current_scope={@current_scope} page_title={@board.name} active={:board} current_board={@board} current_group_id={@filter_group_id} unread_notifications={@unread_notifications} recent_notifications={@recent_notifications} sidebar_goals={@sidebar_goals} sidebar_goal_progress={@sidebar_goal_progress}>
+    <Layouts.shell flash={@flash} current_scope={@current_scope} page_title={@board.name} active={:board} current_board={@board} current_group_id={@filter_group_id} unread_notifications={@unread_notifications} recent_notifications={@recent_notifications} sidebar_goals={@sidebar_goals} sidebar_goal_progress={@sidebar_goal_progress} inbox_count={@inbox_count}>
       <:actions>
         <span :if={!@is_owner?} class="badge badge-info">{@permission}</span>
         <button

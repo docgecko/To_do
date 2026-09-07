@@ -378,6 +378,67 @@ Hooks.SortablePlan = {
   }
 }
 
+// QuickAdd — ⌘K / Ctrl+K anywhere opens the capture box (the header "+"
+// dispatches `orelle:quick-add` to do the same). Open/closed state is
+// held by the LiveComponent; this hook only forwards keys and keeps the
+// title input focused while the box is open.
+Hooks.QuickAdd = {
+  mounted() {
+    this.onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault()
+        this.pushEventTo(this.el, "open", {})
+      } else if (e.key === "Escape" && !this.el.hidden) {
+        this.pushEventTo(this.el, "close", {})
+      }
+    }
+    this.onOpen = () => this.pushEventTo(this.el, "open", {})
+    window.addEventListener("keydown", this.onKey)
+    window.addEventListener("orelle:quick-add", this.onOpen)
+    this.handleEvent("quick-add:focus", () => this.focus())
+  },
+  updated() {
+    if (!this.el.hidden) this.focus()
+  },
+  focus() {
+    const input = this.el.querySelector("input[name='item[title]']")
+    if (input && document.activeElement !== input) input.focus()
+  },
+  destroyed() {
+    window.removeEventListener("keydown", this.onKey)
+    window.removeEventListener("orelle:quick-add", this.onOpen)
+  }
+}
+
+// InboxKeys — triage keyboard: J/K select, Enter moves (submits the
+// triage form so the browser's form handling applies), D discards, T =
+// due today, N = no date, 1–5 = effort quick-picks. Ignored while typing.
+Hooks.InboxKeys = {
+  mounted() {
+    this.onKey = (e) => {
+      const t = e.target
+      const tag = t && t.tagName
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (t && t.isContentEditable)) return
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      const k = e.key
+      if (k === "Enter") {
+        e.preventDefault()
+        const form = document.getElementById("triage-form")
+        if (form) form.requestSubmit()
+        return
+      }
+      if (["j", "k", "d", "t", "n", "1", "2", "3", "4", "5"].includes(k)) {
+        e.preventDefault()
+        this.pushEvent("key", {key: k})
+      }
+    }
+    window.addEventListener("keydown", this.onKey)
+  },
+  destroyed() {
+    window.removeEventListener("keydown", this.onKey)
+  }
+}
+
 Hooks.SmartViewPersist = {
   mounted() {
     this.onClick = (e) => {

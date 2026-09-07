@@ -111,6 +111,22 @@ defmodule ToDo.Accounts do
     user |> User.preferences_changeset(attrs) |> Repo.update()
   end
 
+  @doc """
+  Remembers the column the user last triaged an Inbox item into, so the
+  triage form preselects it next time. Same stale-struct-safe update_all
+  pattern as `Boards.remember_last_board/2`.
+  """
+  def remember_triage_column(%User{} = user, category_id) when is_integer(category_id) do
+    if user.default_triage_category_id == category_id do
+      {:ok, user}
+    else
+      from(u in User, where: u.id == ^user.id)
+      |> Repo.update_all(set: [default_triage_category_id: category_id])
+
+      {:ok, %{user | default_triage_category_id: category_id}}
+    end
+  end
+
   ## Settings
 
   @doc """

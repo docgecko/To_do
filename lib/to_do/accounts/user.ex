@@ -14,6 +14,7 @@ defmodule ToDo.Accounts.User do
     field :last_board_id, :id
     field :daily_capacity_minutes, :integer, default: 360
     field :timezone, :string, default: "Europe/London"
+    field :default_triage_category_id, :id
 
     timestamps(type: :utc_datetime)
   end

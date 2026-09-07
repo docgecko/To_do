@@ -196,6 +196,7 @@ defmodule ToDoWeb.GoalLive.Index do
       recent_notifications={@recent_notifications}
       sidebar_goals={@sidebar_goals}
       sidebar_goal_progress={@sidebar_goal_progress}
+      inbox_count={@inbox_count}
     >
       <:actions>
         <button :if={is_nil(@modal)} phx-click="show_new_goal" class="btn btn-primary btn-sm">

@@ -285,6 +285,34 @@ defmodule ToDoWeb.UserAuth do
     end
   end
 
+  # `:mount_inbox` — assigns `:inbox_count` for the sidebar badge and
+  # subscribes to the user's inbox topic so Quick Add / triage in any
+  # tab updates the badge everywhere. The handle_info hook swallows the
+  # message for every LiveView except InboxLive, which reloads its queue.
+  def on_mount(:mount_inbox, _params, _session, socket) do
+    case socket.assigns[:current_scope] do
+      %Scope{user: %Accounts.User{id: user_id}} ->
+        if Phoenix.LiveView.connected?(socket), do: ToDo.Inbox.subscribe(user_id)
+
+        socket =
+          socket
+          |> Phoenix.Component.assign(:inbox_count, ToDo.Inbox.count_open(user_id))
+          |> Phoenix.LiveView.attach_hook(:inbox_count, :handle_info, fn
+            {:inbox, :changed, count}, socket ->
+              socket = Phoenix.Component.assign(socket, :inbox_count, count)
+              if socket.view == ToDoWeb.InboxLive, do: {:cont, socket}, else: {:halt, socket}
+
+            _msg, socket ->
+              {:cont, socket}
+          end)
+
+        {:cont, socket}
+
+      _ ->
+        {:cont, Phoenix.Component.assign(socket, :inbox_count, 0)}
+    end
+  end
+
   # `:mount_sidebar_goals` — assigns `:sidebar_goals` (the user's active +
   # paused goals with progress fractions) for the shell sidebar. Loaded
   # here rather than in every LV so any view gets the Goals nav for free.

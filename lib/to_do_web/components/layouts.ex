@@ -86,6 +86,8 @@ defmodule ToDoWeb.Layouts do
     default: [],
     doc: "the user's active/paused goals for the sidebar Goals block"
 
+  attr :inbox_count, :integer, default: 0, doc: "open Inbox items, for the sidebar badge"
+
   attr :sidebar_goal_progress, :map,
     default: %{},
     doc: "goal_id => {completed, total} fractions for the sidebar Goals block"
@@ -120,6 +122,16 @@ defmodule ToDoWeb.Layouts do
             </span>
           </div>
           <div class="flex items-center gap-2 sm:gap-3">
+            <button
+              :if={@current_scope && @current_scope.user}
+              type="button"
+              phx-click={JS.dispatch("orelle:quick-add")}
+              class="btn btn-ghost btn-sm btn-square"
+              title="Quick add (⌘K)"
+              aria-label="Quick add"
+            >
+              <.icon name="hero-plus" class="size-5" />
+            </button>
             {render_slot(@actions)}
             <.notifications_bell
               :if={@current_scope && @current_scope.user}
@@ -134,6 +146,14 @@ defmodule ToDoWeb.Layouts do
         </main>
       </div>
 
+      <%!-- ⌘K capture box — one instance per page, on every page. --%>
+      <.live_component
+        :if={@current_scope && @current_scope.user}
+        module={ToDoWeb.QuickAdd}
+        id="quick-add"
+        current_scope={@current_scope}
+      />
+
       <%!-- Drawer side (sidebar) --%>
       <div class="drawer-side z-30">
         <%!-- Backdrop click closes the drawer (only present on `< md`,
@@ -146,6 +166,7 @@ defmodule ToDoWeb.Layouts do
           </div>
           <nav class="flex-1 overflow-y-auto p-3 space-y-6">
             <div class="space-y-1">
+              <.nav_item href={~p"/inbox"} label="Inbox" icon="hero-inbox-arrow-down" active={@active == :inbox} badge={@inbox_count} />
               <.nav_item href={~p"/today"} label="Today" icon="hero-sun" active={@active == :today} />
               <.nav_item href={~p"/upcoming"} label="Upcoming" icon="hero-calendar-days" active={@active == :upcoming} />
               <.nav_item href={~p"/anytime"} label="Anytime" icon="hero-inbox" active={@active == :anytime} />
@@ -236,6 +257,7 @@ defmodule ToDoWeb.Layouts do
   attr :icon, :string, required: true
   attr :active, :boolean, default: false
   attr :patch, :boolean, default: false
+  attr :badge, :integer, default: 0, doc: "count shown at the right edge when > 0"
 
   defp nav_item(%{patch: true} = assigns) do
     ~H"""
@@ -248,7 +270,17 @@ defmodule ToDoWeb.Layouts do
       ]}
     >
       <.icon name={@icon} class="size-4" />
-      <span>{@label}</span>
+      <span class="flex-1">{@label}</span>
+      <span
+        :if={@badge > 0}
+        class={[
+          "text-xs font-medium px-1.5 rounded-full",
+          @active && "bg-primary-content/20 text-primary-content",
+          !@active && "bg-primary/15 text-primary"
+        ]}
+      >
+        {@badge}
+      </span>
     </.link>
     """
   end
@@ -264,7 +296,17 @@ defmodule ToDoWeb.Layouts do
       ]}
     >
       <.icon name={@icon} class="size-4" />
-      <span>{@label}</span>
+      <span class="flex-1">{@label}</span>
+      <span
+        :if={@badge > 0}
+        class={[
+          "text-xs font-medium px-1.5 rounded-full",
+          @active && "bg-primary-content/20 text-primary-content",
+          !@active && "bg-primary/15 text-primary"
+        ]}
+      >
+        {@badge}
+      </span>
     </.link>
     """
   end
