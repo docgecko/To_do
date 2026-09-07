@@ -7,6 +7,12 @@
 # General application configuration
 import Config
 
+# IANA time zone support for per-user day boundaries (Today/Upcoming,
+# daily plans). Bundled tzdata is plenty; autoupdate would make outbound
+# HTTP calls at boot on every Fly machine, so it stays off.
+config :elixir, :time_zone_database, Tzdata.TimeZoneDatabase
+config :tzdata, :autoupdate, :disabled
+
 config :to_do, :scopes,
   user: [
     default: true,

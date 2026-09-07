@@ -686,13 +686,25 @@ defmodule ToDo.Boards do
   end
 
   @doc """
+  End of the current (or given) local day in `tz`, as a UTC DateTime.
+  The day boundary Today/Upcoming pivot on — pass the user's timezone
+  so "due today" means their today, not UTC's.
+  """
+  def end_of_local_day(tz, date \\ nil) do
+    date = date || (DateTime.now!(tz) |> DateTime.to_date())
+    DateTime.new!(date, ~T[23:59:59], tz) |> DateTime.shift_zone!("Etc/UTC")
+  end
+
+  @doc """
   Returns tasks visible to `user_id` across owned + shared boards, filtered by
   `scope` — :today, :upcoming, :anytime, or :waiting.
   Each result is `%{task:, board:, category:, group:}`.
+  Pass `tz:` (IANA name) so the day boundary is the user's; defaults to UTC.
   """
-  def list_smart_tasks(user_id, scope) do
+  def list_smart_tasks(user_id, scope, opts \\ []) do
+    tz = Keyword.get(opts, :tz, "Etc/UTC")
     now = DateTime.utc_now()
-    end_of_today = DateTime.new!(Date.utc_today(), ~T[23:59:59], "Etc/UTC")
+    end_of_today = end_of_local_day(tz)
     scope_str = to_string(scope)
 
     # Left-join the per-user list-position table so the LIST view can

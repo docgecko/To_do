@@ -102,6 +102,15 @@ defmodule ToDo.Accounts do
     |> Repo.update()
   end
 
+  @doc "Changeset for the planning preferences form (daily capacity, timezone)."
+  def change_user_preferences(%User{} = user, attrs \\ %{}) do
+    User.preferences_changeset(user, attrs)
+  end
+
+  def update_user_preferences(%User{} = user, attrs) do
+    user |> User.preferences_changeset(attrs) |> Repo.update()
+  end
+
   ## Settings
 
   @doc """

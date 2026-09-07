@@ -116,6 +116,36 @@ defmodule ToDoWeb.UserLive.Settings do
 
       <div class="divider" />
 
+      <div class="space-y-3">
+        <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/60">Planning</h2>
+        <.form for={@preferences_form} id="preferences_form" phx-submit="update_preferences" class="space-y-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <.input
+              field={@preferences_form[:daily_capacity_minutes]}
+              type="number"
+              min="30"
+              step="15"
+              label="Daily capacity (minutes)"
+            />
+            <.input
+              field={@preferences_form[:timezone]}
+              type="text"
+              label="Time zone"
+              placeholder="Europe/London"
+            />
+          </div>
+          <p class="text-sm text-base-content/60">
+            Capacity is the soft ceiling Today's commitment badge turns amber at
+            ({format_minutes(@user.daily_capacity_minutes)} now). Time zone sets when
+            "today" starts and ends for you — use an IANA name like
+            <span class="font-mono">Europe/London</span> or <span class="font-mono">America/New_York</span>.
+          </p>
+          <.button variant="primary" phx-disable-with="Saving…">Save planning preferences</.button>
+        </.form>
+      </div>
+
+      <div class="divider" />
+
       <.form for={@email_form} id="email_form" phx-submit="update_email" phx-change="validate_email">
         <.input
           field={@email_form[:email]}
@@ -194,6 +224,7 @@ defmodule ToDoWeb.UserLive.Settings do
       |> assign(:current_email, user.email)
       |> assign(:email_form, to_form(email_changeset))
       |> assign(:password_form, to_form(password_changeset))
+      |> assign(:preferences_form, to_form(Accounts.change_user_preferences(user), as: "preferences"))
       |> assign(:trigger_submit, false)
       |> assign(:user, user)
       |> allow_upload(:avatar,
@@ -309,6 +340,22 @@ defmodule ToDoWeb.UserLive.Settings do
      socket
      |> assign(:user, updated)
      |> put_flash(:info, flash_msg)}
+  end
+
+  def handle_event("update_preferences", %{"preferences" => params}, socket) do
+    user = socket.assigns.user
+
+    case Accounts.update_user_preferences(user, params) do
+      {:ok, updated} ->
+        {:noreply,
+         socket
+         |> assign(:user, updated)
+         |> assign(:preferences_form, to_form(Accounts.change_user_preferences(updated), as: "preferences"))
+         |> put_flash(:info, "Planning preferences saved.")}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :preferences_form, to_form(changeset, as: "preferences"))}
+    end
   end
 
   def handle_event("remove_avatar", _params, socket) do

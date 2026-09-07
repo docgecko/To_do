@@ -355,6 +355,29 @@ Hooks.SortableListTasks = {
   }
 }
 
+// SortablePlan — drag-reorder the Planned section on Today. Pushes the
+// full ordered task_ids; the server rewrites task_plans.position for
+// the day.
+Hooks.SortablePlan = {
+  mounted() {
+    this.sortable = new Sortable(this.el, {
+      animation: 150,
+      ghostClass: "opacity-40",
+      dragClass: "cursor-grabbing",
+      handle: "[data-plan-drag-handle]",
+      onEnd: () => {
+        const ids = Array.from(this.el.children)
+          .map((el) => el.dataset.taskId)
+          .filter(Boolean)
+        this.pushEvent("reorder_plan", {task_ids: ids})
+      }
+    })
+  },
+  destroyed() {
+    this.sortable && this.sortable.destroy()
+  }
+}
+
 Hooks.SmartViewPersist = {
   mounted() {
     this.onClick = (e) => {

@@ -12,6 +12,8 @@ defmodule ToDo.Accounts.User do
     field :email_notifications_enabled, :boolean, default: true
     field :is_admin, :boolean, default: false
     field :last_board_id, :id
+    field :daily_capacity_minutes, :integer, default: 360
+    field :timezone, :string, default: "Europe/London"
 
     timestamps(type: :utc_datetime)
   end
@@ -108,6 +110,20 @@ defmodule ToDo.Accounts.User do
     else
       changeset
     end
+  end
+
+  @doc "Planning preferences: daily capacity (minutes) and IANA timezone."
+  def preferences_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:daily_capacity_minutes, :timezone])
+    |> validate_required([:daily_capacity_minutes, :timezone])
+    |> validate_number(:daily_capacity_minutes, greater_than: 0, less_than_or_equal_to: 24 * 60)
+    |> validate_change(:timezone, fn :timezone, tz ->
+      case DateTime.now(tz) do
+        {:ok, _} -> []
+        _ -> [timezone: "is not a known time zone (e.g. Europe/London)"]
+      end
+    end)
   end
 
   @doc """
