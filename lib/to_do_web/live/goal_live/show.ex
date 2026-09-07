@@ -159,6 +159,7 @@ defmodule ToDoWeb.GoalLive.Show do
                   <span :if={row.task.due_at} class="inline-flex items-center gap-1">
                     <.icon name="hero-clock" class="size-3.5" /> {format_due(row.task.due_at)}
                   </span>
+                  <.estimate_chip minutes={row.task.estimated_minutes} />
                   <span :if={row.task.waiting} class="inline-flex items-center gap-1" title="Waiting">
                     ⏳ Waiting
                   </span>

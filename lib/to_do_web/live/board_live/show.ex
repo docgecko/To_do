@@ -183,6 +183,7 @@ defmodule ToDoWeb.BoardLive.Show do
       "repeat_every" => "1",
       "repeat_until" => "",
       "waiting" => "false",
+      "estimated_minutes" => "",
       "category_id" => Integer.to_string(cid),
       "goal_ids" => []
     }
@@ -452,6 +453,24 @@ defmodule ToDoWeb.BoardLive.Show do
      |> assign(:form, to_form(changeset))}
   end
 
+  # -- estimate quick-pick (tasks only) --
+
+  # `minutes` is "" for the Clear button, which cast/3 turns into nil.
+  def handle_event("pick_estimate", %{"minutes" => minutes}, socket) do
+    params = Map.put(socket.assigns.form_params, "estimated_minutes", minutes)
+    subject = modal_subject(socket) || %Task{}
+
+    changeset =
+      subject
+      |> Task.changeset(normalize_due_at(params))
+      |> Map.put(:action, :validate)
+
+    {:noreply,
+     socket
+     |> assign(:form_params, params)
+     |> assign(:form, to_form(changeset))}
+  end
+
   # -- save handlers --
 
   def handle_event("save_group", %{"category" => params}, socket) do
@@ -617,6 +636,7 @@ defmodule ToDoWeb.BoardLive.Show do
       "repeat_every" => to_string(task.repeat_every || 1),
       "repeat_until" => due_input_value(task.repeat_until),
       "waiting" => to_string(task.waiting),
+      "estimated_minutes" => if(task.estimated_minutes, do: Integer.to_string(task.estimated_minutes), else: ""),
       "category_id" => Integer.to_string(task.category_id),
       "goal_ids" => Goals.user_goal_ids_for_task(task.id, user_id) |> Enum.map(&to_string/1)
     }
@@ -1023,6 +1043,41 @@ defmodule ToDoWeb.BoardLive.Show do
             label="Repeat until (optional)"
           />
 
+          <div>
+            <div class="flex flex-wrap gap-1 mb-1">
+              <button
+                :for={{label, mins} <- [{"15m", "15"}, {"30m", "30"}, {"1h", "60"}, {"2h", "120"}, {"Half day", "240"}]}
+                type="button"
+                phx-click="pick_estimate"
+                phx-value-minutes={mins}
+                class={[
+                  "btn btn-xs",
+                  @form_params["estimated_minutes"] == mins && "btn-primary",
+                  @form_params["estimated_minutes"] != mins && "btn-ghost"
+                ]}
+              >
+                {label}
+              </button>
+              <button
+                type="button"
+                phx-click="pick_estimate"
+                phx-value-minutes=""
+                class="btn btn-ghost btn-xs"
+              >
+                Clear
+              </button>
+            </div>
+            <.input
+              name="task[estimated_minutes]"
+              value={@form_params["estimated_minutes"] || ""}
+              type="number"
+              min="5"
+              step="5"
+              label="Estimate (minutes, optional)"
+              placeholder="e.g. 45"
+            />
+          </div>
+
           <%!-- Goal tags: the current user's active goals as a checkbox
                group. Only YOUR tags are shown and managed here — a
                collaborator's tags on this task are untouched by saving.
@@ -1223,11 +1278,12 @@ defmodule ToDoWeb.BoardLive.Show do
                             {task.title}
                           </div>
                           <div :if={task.notes && task.notes != ""} class="text-xs text-base-content/60 leading-tight whitespace-pre-line">{task.notes}</div>
-                          <div :if={task.due_at || repeat_label(task.repeat, task.repeat_every) || task.waiting} class="text-xs mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-base-content/70">
+                          <div :if={task.due_at || task.estimated_minutes || repeat_label(task.repeat, task.repeat_every) || task.waiting} class="text-xs mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-base-content/70">
                             <span :if={task.due_at} class="inline-flex items-center gap-1">
                               <.icon name="hero-clock" class="size-3.5" />
                               <span>{format_due(task.due_at)}</span>
                             </span>
+                            <.estimate_chip minutes={task.estimated_minutes} />
                             <span :if={repeat_label(task.repeat, task.repeat_every)} class="inline-flex items-center gap-1" title="Repeats">
                               <.icon name="hero-arrow-path" class="size-3.5" />
                               <span>{repeat_label(task.repeat, task.repeat_every)}</span>
@@ -1244,11 +1300,12 @@ defmodule ToDoWeb.BoardLive.Show do
                             {task.title}
                           </div>
                           <div :if={task.notes && task.notes != ""} class="text-xs text-base-content/60 leading-tight whitespace-pre-line">{task.notes}</div>
-                          <div :if={task.due_at || repeat_label(task.repeat, task.repeat_every) || task.waiting} class="text-xs mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-base-content/70">
+                          <div :if={task.due_at || task.estimated_minutes || repeat_label(task.repeat, task.repeat_every) || task.waiting} class="text-xs mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-base-content/70">
                             <span :if={task.due_at} class="inline-flex items-center gap-1">
                               <.icon name="hero-clock" class="size-3.5" />
                               <span>{format_due(task.due_at)}</span>
                             </span>
+                            <.estimate_chip minutes={task.estimated_minutes} />
                             <span :if={repeat_label(task.repeat, task.repeat_every)} class="inline-flex items-center gap-1" title="Repeats">
                               <.icon name="hero-arrow-path" class="size-3.5" />
                               <span>{repeat_label(task.repeat, task.repeat_every)}</span>

@@ -212,6 +212,36 @@ defmodule ToDoWeb.CoreComponents do
   end
 
   @doc """
+  Formats an estimate in minutes as a compact human string: 45 → "45m",
+  60 → "1h", 90 → "1h 30m", 480 → "8h". nil → nil.
+  """
+  def format_minutes(nil), do: nil
+  def format_minutes(m) when is_integer(m) and m < 60, do: "#{m}m"
+
+  def format_minutes(m) when is_integer(m) do
+    case {div(m, 60), rem(m, 60)} do
+      {h, 0} -> "#{h}h"
+      {h, r} -> "#{h}h #{r}m"
+    end
+  end
+
+  @doc """
+  Inline chip showing a task's effort estimate. Renders nothing for nil so
+  callers can pass `task.estimated_minutes` straight through.
+  """
+  attr :minutes, :integer, default: nil
+  attr :class, :string, default: "size-3.5"
+
+  def estimate_chip(assigns) do
+    ~H"""
+    <span :if={@minutes} class="inline-flex items-center gap-1" title="Estimated effort">
+      <.icon name="hero-clock" class={@class} />
+      <span>~{format_minutes(@minutes)}</span>
+    </span>
+    """
+  end
+
+  @doc """
   Chip row for a task's goal tags. Renders nothing for nil/[] so callers
   can pass `@task_goals[task.id]` straight through without guards.
   Clicking a chip navigates to that goal's page.

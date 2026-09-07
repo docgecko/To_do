@@ -13,6 +13,7 @@ defmodule ToDo.Boards.Task do
     field :repeat_every, :integer, default: 1
     field :repeat_until, :utc_datetime
     field :waiting, :boolean, default: false
+    field :estimated_minutes, :integer
 
     belongs_to :category, ToDo.Boards.Category
     belongs_to :prior_category, ToDo.Boards.Category
@@ -44,6 +45,7 @@ defmodule ToDo.Boards.Task do
       :repeat_every,
       :repeat_until,
       :waiting,
+      :estimated_minutes,
       :category_id,
       :prior_category_id,
       :created_by_id
@@ -53,6 +55,7 @@ defmodule ToDo.Boards.Task do
     |> validate_length(:title, max: 500)
     |> validate_inclusion(:repeat, @repeat_units)
     |> validate_number(:repeat_every, greater_than: 0)
+    |> validate_number(:estimated_minutes, greater_than: 0, less_than_or_equal_to: 24 * 60)
   end
 
   # Treat blank/"none" as no repeat. When repeat is cleared, also reset

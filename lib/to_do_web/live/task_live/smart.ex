@@ -175,6 +175,38 @@ defmodule ToDoWeb.TaskLive.Smart do
   defp format_due(nil), do: nil
   defp format_due(%DateTime{} = dt), do: Calendar.strftime(dt, "%a %d %b %Y · %H:%M")
 
+  # -- Today commitment total --
+
+  # Soft ceiling for a day's estimated work. Hardcoded for now; becomes a
+  # per-user setting once the Daily planning flow lands.
+  @daily_capacity_minutes 6 * 60
+
+  defp open_rows(rows), do: Enum.reject(rows, & &1.task.done)
+
+  defp estimate_total(rows) do
+    rows |> open_rows() |> Enum.map(&(&1.task.estimated_minutes || 0)) |> Enum.sum()
+  end
+
+  defp over_capacity?(rows), do: estimate_total(rows) > @daily_capacity_minutes
+
+  defp committed_label(rows) do
+    open = open_rows(rows)
+    n = length(open)
+    noun = if n == 1, do: "task", else: "tasks"
+    unestimated = Enum.count(open, &is_nil(&1.task.estimated_minutes))
+
+    case estimate_total(open) do
+      0 ->
+        "#{n} #{noun} · no estimates yet"
+
+      total when unestimated > 0 ->
+        "#{n} #{noun} · ~#{format_minutes(total)} committed (#{unestimated} unestimated)"
+
+      total ->
+        "#{n} #{noun} · ~#{format_minutes(total)} committed"
+    end
+  end
+
   defp repeat_label(nil, _), do: nil
   defp repeat_label("", _), do: nil
   defp repeat_label(unit, every) when is_binary(unit) do
@@ -212,7 +244,24 @@ defmodule ToDoWeb.TaskLive.Smart do
       </:title_extra>
       <div class={[@view == :list && "max-w-3xl", "space-y-4"]}>
         <div class="flex items-center justify-between gap-3 flex-wrap">
-          <p class="text-sm text-base-content/60">{@subtitle}</p>
+          <div class="flex items-center gap-2 flex-wrap text-sm text-base-content/60">
+            <p>{@subtitle}</p>
+            <%!-- Today only: how much you've committed to. Amber once the
+                 estimated total passes @daily_capacity_minutes so overcommit
+                 is visible before the day starts, not in hindsight. --%>
+            <span
+              :if={@scope == :today and @rows != []}
+              class={[
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium",
+                over_capacity?(@rows) && "bg-warning/25 text-base-content",
+                !over_capacity?(@rows) && "bg-base-200 text-base-content/70"
+              ]}
+              title={"Sum of estimates on open tasks. Turns amber past #{format_minutes(@daily_capacity_minutes)}."}
+            >
+              <.icon :if={over_capacity?(@rows)} name="hero-exclamation-triangle" class="size-3.5" />
+              {committed_label(@rows)}
+            </span>
+          </div>
           <div id="smart-view-toggle" phx-hook="SmartViewPersist" class="join">
             <.link
               patch={view_href(@scope, :list)}
@@ -330,6 +379,7 @@ defmodule ToDoWeb.TaskLive.Smart do
                 <span :if={row.task.due_at} class="inline-flex items-center gap-1">
                   <.icon name="hero-clock" class="size-3.5" /> {format_due(row.task.due_at)}
                 </span>
+                <.estimate_chip minutes={row.task.estimated_minutes} />
                 <span :if={repeat_label(row.task.repeat, row.task.repeat_every)} class="inline-flex items-center gap-1" title="Repeats">
                   <.icon name="hero-arrow-path" class="size-3.5" /> {repeat_label(row.task.repeat, row.task.repeat_every)}
                 </span>
@@ -446,11 +496,12 @@ defmodule ToDoWeb.TaskLive.Smart do
                                 {task.title}
                               </div>
                               <div :if={task.notes && task.notes != ""} class="text-xs text-base-content/60 leading-tight whitespace-pre-line">{task.notes}</div>
-                              <div :if={task.due_at || repeat_label(task.repeat, task.repeat_every) || task.waiting} class="text-xs mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-base-content/70">
+                              <div :if={task.due_at || task.estimated_minutes || repeat_label(task.repeat, task.repeat_every) || task.waiting} class="text-xs mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-base-content/70">
                                 <span :if={task.due_at} class="inline-flex items-center gap-1">
                                   <.icon name="hero-clock" class="size-3.5" />
                                   <span>{format_due(task.due_at)}</span>
                                 </span>
+                                <.estimate_chip minutes={task.estimated_minutes} />
                                 <span :if={repeat_label(task.repeat, task.repeat_every)} class="inline-flex items-center gap-1" title="Repeats">
                                   <.icon name="hero-arrow-path" class="size-3.5" />
                                   <span>{repeat_label(task.repeat, task.repeat_every)}</span>
