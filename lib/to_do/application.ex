@@ -7,6 +7,14 @@ defmodule ToDo.Application do
 
   @impl true
   def start(_type, _args) do
+    # Prod only: apply pending migrations before anything can serve a
+    # request. Closes the deploy→migrate gap that 500'd twice when the
+    # schema gained a column the DB didn't have yet. Ecto.Migrator takes
+    # an advisory lock, so the brief blue-green overlap is safe; if it
+    # fails the machine doesn't boot, which blue-green turns into an
+    # aborted deploy rather than an outage.
+    if Application.get_env(:to_do, :migrate_on_boot, false), do: ToDo.Release.migrate()
+
     children = [
       ToDoWeb.Telemetry,
       ToDo.Repo,
