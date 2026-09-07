@@ -11,6 +11,12 @@ primary_region = "lhr"
 [build]
 
 [deploy]
+  # Blue-green: start the new machine, wait for its health check, only
+  # then retire the old one. The default rolling strategy stops the
+  # single machine first, which leaves a window where the browser's
+  # WebSocket can't reconnect — LiveView then falls back to long-polling
+  # and remembers that for the rest of the tab session.
+  strategy = "bluegreen"
   # release_command is intentionally not set. The Fly release-machine boots
   # faster than Fly's internal IPv6 networking, so Postgrex consistently
   # fails to reach orelle-db on first attempt. Migrations are run manually

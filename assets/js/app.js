@@ -462,8 +462,13 @@ document.addEventListener("click", (e) => {
 })
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
+// Fallback to long-polling only if the WebSocket hasn't connected after
+// 5s (Phoenix default is 2.5s). WebSockets work fine through Fly's edge;
+// the fallback was being tripped by slow first connects right after a
+// deploy, and phoenix.js remembers the fallback for the rest of the tab
+// session — leaving users on a degraded transport for no reason.
 const liveSocket = new LiveSocket("/live", Socket, {
-  longPollFallbackMs: 2500,
+  longPollFallbackMs: 5000,
   params: {_csrf_token: csrfToken},
   hooks: {...colocatedHooks, ...Hooks},
 })
