@@ -155,6 +155,8 @@ defmodule ToDoWeb.BoardLive.Show do
     else
       case String.split(target, ":", parts: 2) do
         ["task", id] -> try_open(socket, &maybe_open_new_task/2, id)
+        # `?new=group` — the sidebar's + on the "Board: …" header.
+        ["group"] -> open_new_group_modal(socket)
         _ -> socket
       end
     end
@@ -331,13 +333,17 @@ defmodule ToDoWeb.BoardLive.Show do
 
   def handle_event("show_new_group", _params, socket) do
     require_edit!(socket)
+    {:noreply, open_new_group_modal(socket)}
+  end
+
+  # Shared by the header "+ Add group" button and the `?new=group` deep-link.
+  defp open_new_group_modal(socket) do
     params = %{"name" => "", "color" => "#fbbf24", "waiting" => "false"}
 
-    {:noreply,
-     socket
-     |> assign(:modal, %{kind: :group, mode: :new})
-     |> assign(:form_params, params)
-     |> assign(:form, to_form(Category.changeset(%Category{}, params)))}
+    socket
+    |> assign(:modal, %{kind: :group, mode: :new})
+    |> assign(:form_params, params)
+    |> assign(:form, to_form(Category.changeset(%Category{}, params)))
   end
 
   def handle_event("edit_group", %{"id" => id}, socket) do

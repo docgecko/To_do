@@ -233,8 +233,25 @@ defmodule ToDoWeb.Layouts do
               </.link>
             </div>
             <div :if={@current_board} class="space-y-1">
-              <div class="px-2 text-xs font-semibold uppercase tracking-wide text-base-content/60">
-                Board: {@current_board.name}
+              <%!-- Same treatment as the Goals header: the name links to the
+                   board, the + opens its new-group modal — hover/focus-
+                   revealed on desktop, always visible below md. --%>
+              <div class="group/board flex items-center px-2">
+                <.link
+                  navigate={~p"/boards/#{@current_board.id}"}
+                  class="flex-1 min-w-0 truncate text-xs font-semibold uppercase tracking-wide text-base-content/60 hover:text-base-content"
+                  title={@current_board.name}
+                >
+                  Board: {@current_board.name}
+                </.link>
+                <.link
+                  navigate={~p"/boards/#{@current_board.id}?new=group"}
+                  class="rounded p-0.5 text-base-content/50 hover:text-base-content hover:bg-base-300/60 md:opacity-0 md:group-hover/board:opacity-100 md:focus-visible:opacity-100 transition-opacity"
+                  title="Add group"
+                  aria-label="Add group"
+                >
+                  <.icon name="hero-plus" class="size-4" />
+                </.link>
               </div>
               <.nav_item
                 href={~p"/boards/#{@current_board.id}"}
