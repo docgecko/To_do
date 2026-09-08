@@ -45,8 +45,13 @@ defmodule ToDo.Release do
         Logger.info("[Release] waiting for Erlang resolver to find #{host}...")
         attempts = 30
 
+        # Fly's .flycast / .internal names only have AAAA records, and the
+        # Repo connects with socket_options: [:inet6]. Ask for IPv6 first —
+        # the default (IPv4) lookup never succeeds here and burned the full
+        # 30s on every boot, pushing the endpoint right up against the
+        # health-check grace period.
         Enum.reduce_while(1..attempts, nil, fn i, _ ->
-          case :inet.gethostbyname(String.to_charlist(host)) do
+          case resolve(host) do
             {:ok, _} ->
               Logger.info("[Release] resolved #{host} after #{i}s")
               {:halt, :ok}
@@ -60,6 +65,15 @@ defmodule ToDo.Release do
               {:cont, nil}
           end
         end)
+    end
+  end
+
+  defp resolve(host) do
+    name = String.to_charlist(host)
+
+    case :inet.gethostbyname(name, :inet6) do
+      {:ok, _} = ok -> ok
+      _ -> :inet.gethostbyname(name, :inet)
     end
   end
 
