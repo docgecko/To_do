@@ -185,14 +185,6 @@ defmodule ToDoWeb.Layouts do
                 Goals
               </.link>
               <.link
-                :if={@sidebar_goals == []}
-                navigate={~p"/goals?new=1"}
-                class="flex items-center gap-2 px-2 py-1.5 rounded text-sm text-base-content/80 hover:bg-base-300/60"
-              >
-                <.icon name="hero-plus" class="size-4" />
-                <span>Add goal</span>
-              </.link>
-              <.link
                 :for={goal <- Enum.take(@sidebar_goals, 8)}
                 navigate={~p"/goals/#{goal.id}"}
                 class={[
@@ -215,6 +207,16 @@ defmodule ToDoWeb.Layouts do
                 class="block px-2 py-1 text-xs text-base-content/60 hover:text-base-content hover:underline"
               >
                 View all →
+              </.link>
+              <%!-- Always present — with zero goals it's the only way to
+                   create one; with many, /goals' button is a click away
+                   but not discoverable from here. --%>
+              <.link
+                navigate={~p"/goals?new=1"}
+                class="flex items-center gap-2 px-2 py-1.5 rounded text-sm text-base-content/60 hover:bg-base-300/60 hover:text-base-content"
+              >
+                <.icon name="hero-plus" class="size-4" />
+                <span>Add goal</span>
               </.link>
             </div>
             <div :if={@current_board} class="space-y-1">
