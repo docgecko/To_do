@@ -191,7 +191,7 @@ defmodule ToDoWeb.Layouts do
                 </.link>
                 <.link
                   navigate={~p"/goals?new=1"}
-                  class="rounded p-0.5 text-base-content/50 hover:text-base-content hover:bg-base-300/60 md:opacity-0 md:group-hover/goals:opacity-100 md:focus-visible:opacity-100 transition-opacity"
+                  class="inline-flex items-center justify-center rounded p-0.5 leading-none text-base-content/50 hover:text-base-content hover:bg-base-300/60 md:opacity-0 md:group-hover/goals:opacity-100 md:focus-visible:opacity-100 transition-opacity"
                   title="Add goal"
                   aria-label="Add goal"
                 >
@@ -246,7 +246,7 @@ defmodule ToDoWeb.Layouts do
                 </.link>
                 <.link
                   navigate={~p"/boards/#{@current_board.id}?new=group"}
-                  class="rounded p-0.5 text-base-content/50 hover:text-base-content hover:bg-base-300/60 md:opacity-0 md:group-hover/board:opacity-100 md:focus-visible:opacity-100 transition-opacity"
+                  class="inline-flex items-center justify-center rounded p-0.5 leading-none text-base-content/50 hover:text-base-content hover:bg-base-300/60 md:opacity-0 md:group-hover/board:opacity-100 md:focus-visible:opacity-100 transition-opacity"
                   title="Add group"
                   aria-label="Add group"
                 >
