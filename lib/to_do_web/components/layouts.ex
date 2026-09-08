@@ -178,12 +178,26 @@ defmodule ToDoWeb.Layouts do
                  goals) — otherwise nothing in the app links to /goals and a
                  first-time user has no way to create one. --%>
             <div :if={@current_scope && @current_scope.user} class="space-y-1">
-              <.link
-                navigate={~p"/goals"}
-                class="block px-2 text-xs font-semibold uppercase tracking-wide text-base-content/60 hover:text-base-content"
-              >
-                Goals
-              </.link>
+              <%!-- Header row: "Goals" links to the index; the + on the
+                   right opens the create modal. The + is hover/focus-
+                   revealed on desktop but always visible below md, where
+                   there's no hover to reveal it. --%>
+              <div class="group/goals flex items-center px-2">
+                <.link
+                  navigate={~p"/goals"}
+                  class="flex-1 text-xs font-semibold uppercase tracking-wide text-base-content/60 hover:text-base-content"
+                >
+                  Goals
+                </.link>
+                <.link
+                  navigate={~p"/goals?new=1"}
+                  class="rounded p-0.5 text-base-content/50 hover:text-base-content hover:bg-base-300/60 md:opacity-0 md:group-hover/goals:opacity-100 md:focus-visible:opacity-100 transition-opacity"
+                  title="Add goal"
+                  aria-label="Add goal"
+                >
+                  <.icon name="hero-plus" class="size-4" />
+                </.link>
+              </div>
               <.link
                 :for={goal <- Enum.take(@sidebar_goals, 8)}
                 navigate={~p"/goals/#{goal.id}"}
@@ -208,15 +222,14 @@ defmodule ToDoWeb.Layouts do
               >
                 View all →
               </.link>
-              <%!-- Always present — with zero goals it's the only way to
-                   create one; with many, /goals' button is a click away
-                   but not discoverable from here. --%>
+              <%!-- Zero goals: a one-line hint so the + on the header
+                   isn't the only clue. --%>
               <.link
+                :if={@sidebar_goals == []}
                 navigate={~p"/goals?new=1"}
-                class="flex items-center gap-2 px-2 py-1.5 rounded text-sm text-base-content/60 hover:bg-base-300/60 hover:text-base-content"
+                class="block px-2 py-1 text-xs text-base-content/50 hover:text-base-content hover:underline"
               >
-                <.icon name="hero-plus" class="size-4" />
-                <span>Add goal</span>
+                No goals yet — add one
               </.link>
             </div>
             <div :if={@current_board} class="space-y-1">
