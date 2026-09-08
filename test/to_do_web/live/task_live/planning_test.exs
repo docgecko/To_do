@@ -203,6 +203,28 @@ defmodule ToDoWeb.TaskLive.PlanningTest do
     refute render(lv) =~ "Candidates"
   end
 
+  test "waiting tasks stay out of Today/Upcoming/Anytime and show only under Waiting", ctx do
+    %{conn: conn, user: user, t_today: t_today, t_later: t_later, t_anytime: t_anytime} = ctx
+    {:ok, _} = Boards.update_task(t_today, %{"waiting" => "true"})
+    {:ok, _} = Boards.update_task(t_later, %{"waiting" => "true"})
+    {:ok, _} = Boards.update_task(t_anytime, %{"waiting" => "true"})
+
+    ids = fn scope -> Boards.list_smart_tasks(user.id, scope) |> Enum.map(& &1.task.id) |> Enum.sort() end
+    assert ids.(:today) == []
+    assert ids.(:upcoming) == []
+    assert ids.(:anytime) == []
+    assert ids.(:waiting) == Enum.sort([t_today.id, t_later.id, t_anytime.id])
+
+    {:ok, _lv, html} = live(conn, ~p"/today")
+    refute html =~ "Due today"
+    assert html =~ "Nothing here."
+
+    # Planning candidates: not overdue/due-today, but offered under Waiting.
+    {:ok, _lv, html} = live(conn, ~p"/today?plan=1")
+    refute html =~ "Due today · "
+    assert html =~ "Waiting · 3"
+  end
+
   test "another user's plan on a shared task is invisible to me", ctx do
     %{user: user, today: today, t_today: t_today} = ctx
     other = ToDo.AccountsFixtures.user_fixture()

@@ -789,20 +789,28 @@ defmodule ToDo.Boards do
   # falls through to a sensible chronological default. `asc_nulls_last`
   # means tasks the user has NOT manually dragged still appear in date
   # order behind the ones they have.
+  # Waiting-for (task flag, or inherited from a waiting column/group) has
+  # its own list; it is not a next action, so it stays out of Today,
+  # Upcoming and Anytime. The Waiting scope is the inverse of this.
+  defp exclude_waiting(q) do
+    from [t, c, _b, g, _bs, _ts, _tlp] in q,
+      where: t.waiting == false and c.waiting == false and (is_nil(g.id) or g.waiting == false)
+  end
+
   defp apply_smart_filter(q, :today, _now, eod) do
-    from [t, _c, _b, _g, _bs, _ts, tlp] in q,
+    from [t, _c, _b, _g, _bs, _ts, tlp] in exclude_waiting(q),
       where: t.done == false and not is_nil(t.due_at) and t.due_at <= ^eod,
       order_by: [asc_nulls_last: tlp.position, asc: t.due_at, asc: t.position]
   end
 
   defp apply_smart_filter(q, :upcoming, _now, eod) do
-    from [t, _c, _b, _g, _bs, _ts, tlp] in q,
+    from [t, _c, _b, _g, _bs, _ts, tlp] in exclude_waiting(q),
       where: t.done == false and not is_nil(t.due_at) and t.due_at > ^eod,
       order_by: [asc_nulls_last: tlp.position, asc: t.due_at, asc: t.position]
   end
 
   defp apply_smart_filter(q, :anytime, _now, _eod) do
-    from [t, _c, _b, _g, _bs, _ts, tlp] in q,
+    from [t, _c, _b, _g, _bs, _ts, tlp] in exclude_waiting(q),
       where: t.done == false and is_nil(t.due_at),
       order_by: [asc_nulls_last: tlp.position, asc: t.inserted_at]
   end
