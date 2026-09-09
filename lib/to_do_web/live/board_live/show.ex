@@ -1278,7 +1278,7 @@ defmodule ToDoWeb.BoardLive.Show do
                           type="button"
                           phx-click="edit_task"
                           phx-value-id={task.id}
-                          class="flex-1 min-w-0 text-left cursor-pointer"
+                          class="flex-1 min-w-0 text-left cursor-pointer flex flex-col items-stretch"
                           title="Click to edit task"
                         >
                           <div class={["break-words leading-tight", task.done && "line-through text-base-content/50"]}>
