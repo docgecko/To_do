@@ -350,8 +350,25 @@ defmodule ToDoWeb.Layouts do
 
   defp notifications_bell(assigns) do
     ~H"""
-    <div class="dropdown dropdown-end">
-      <div tabindex="0" role="button" class="cursor-pointer relative p-1 rounded hover:bg-base-300/60" aria-label="Notifications">
+    <%!-- Open/closed is driven by JS.toggle / JS.hide rather than DaisyUI's
+         :focus-based dropdown. LiveView re-applies JS-command state after
+         every DOM patch, so flipping a row read/unread (which re-renders
+         and re-orders the list) no longer drops focus and snaps the menu
+         shut. Click-away and Escape close it. --%>
+    <div
+      id="notifications-bell"
+      class="relative"
+      phx-click-away={JS.hide(to: "#notifications-menu")}
+      phx-window-keydown={JS.hide(to: "#notifications-menu")}
+      phx-key="Escape"
+    >
+      <button
+        type="button"
+        phx-click={JS.toggle(to: "#notifications-menu")}
+        class="cursor-pointer relative p-1 rounded hover:bg-base-300/60"
+        aria-label="Notifications"
+        aria-controls="notifications-menu"
+      >
         <.icon name="hero-bell" class="size-5" />
         <span
           :if={@unread > 0}
@@ -359,8 +376,12 @@ defmodule ToDoWeb.Layouts do
         >
           {if @unread > 99, do: "99+", else: @unread}
         </span>
-      </div>
-      <div tabindex="0" class="dropdown-content z-10 mt-2 w-80 max-w-[90vw] bg-base-100 border border-base-300 rounded-box shadow">
+      </button>
+      <div
+        id="notifications-menu"
+        style="display: none"
+        class="absolute right-0 top-full z-10 mt-2 w-80 max-w-[90vw] bg-base-100 border border-base-300 rounded-box shadow"
+      >
         <div class="flex items-center justify-between px-3 py-2 border-b border-base-300">
           <span class="font-semibold text-sm">Notifications</span>
           <button

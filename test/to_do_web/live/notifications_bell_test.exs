@@ -20,6 +20,11 @@ defmodule ToDoWeb.NotificationsBellTest do
        %{conn: conn, user: user, a: a, b: b} do
     {:ok, lv, _html} = live(conn, ~p"/today")
 
+    # The menu's open state is a JS command (kept across patches), not a
+    # :focus-based CSS dropdown; the server always renders it closed.
+    assert has_element?(lv, "#notifications-menu[style='display: none']")
+    assert has_element?(lv, "#notifications-bell[phx-click-away]")
+
     assert Notifications.unread_count(user.id) == 2
     assert has_element?(lv, "#notification-#{a.id}-toggle[title='Mark as read']")
     assert has_element?(lv, "#notification-#{b.id}-toggle[title='Mark as read']")
