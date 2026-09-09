@@ -248,18 +248,37 @@ defmodule ToDoWeb.CoreComponents do
   """
   attr :goals, :list, default: nil
 
+  attr :linked, :boolean,
+    default: true,
+    doc: """
+    Render each chip as a link to its goal. Pass false when the chips sit
+    inside an element that is itself a link or button — an <a> nested in
+    an <a> (or <button>) is invalid HTML and the parser closes the outer
+    element early, which throws the whole card layout off.
+    """
+
   def goal_chips(assigns) do
     ~H"""
     <div :if={@goals not in [nil, []]} class="mt-1.5 flex flex-wrap gap-1">
-      <.link
-        :for={goal <- @goals}
-        navigate={"/goals/#{goal.id}"}
-        class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-base-200/60 text-xs text-base-content/70 hover:bg-base-300/60 hover:text-base-content max-w-[12rem]"
-        title={"Goal: #{goal.name}"}
-      >
-        <span class="w-1.5 h-1.5 rounded-full shrink-0" style={"background:#{goal.color || "#3b82f6"}"} />
-        <span class="truncate">{goal.name}</span>
-      </.link>
+      <%= for goal <- @goals do %>
+        <.link
+          :if={@linked}
+          navigate={"/goals/#{goal.id}"}
+          class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-base-200/60 text-xs text-base-content/70 hover:bg-base-300/60 hover:text-base-content max-w-[12rem]"
+          title={"Goal: #{goal.name}"}
+        >
+          <span class="w-1.5 h-1.5 rounded-full shrink-0" style={"background:#{goal.color || "#3b82f6"}"} />
+          <span class="truncate">{goal.name}</span>
+        </.link>
+        <span
+          :if={!@linked}
+          class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-base-200/60 text-xs text-base-content/70 max-w-[12rem]"
+          title={"Goal: #{goal.name}"}
+        >
+          <span class="w-1.5 h-1.5 rounded-full shrink-0" style={"background:#{goal.color || "#3b82f6"}"} />
+          <span class="truncate">{goal.name}</span>
+        </span>
+      <% end %>
     </div>
     """
   end

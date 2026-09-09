@@ -1105,7 +1105,7 @@ defmodule ToDoWeb.TaskLive.Smart do
                                   <span>Waiting</span>
                                 </span>
                               </div>
-                              <.goal_chips goals={@task_goals[task.id]} />
+                              <.goal_chips goals={@task_goals[task.id]} linked={false} />
                             </.link>
                             <div :if={@scope == :trash} class="flex-1 min-w-0">
                               <div class={["break-words leading-tight", task.done && "line-through text-base-content/50"]}>

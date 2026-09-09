@@ -1300,7 +1300,7 @@ defmodule ToDoWeb.BoardLive.Show do
                               <span>Waiting</span>
                             </span>
                           </div>
-                          <.goal_chips goals={@task_goals[task.id]} />
+                          <.goal_chips goals={@task_goals[task.id]} linked={false} />
                         </button>
                         <div :if={!@can_edit?} class="flex-1 min-w-0">
                           <div class={["break-words leading-tight", task.done && "line-through text-base-content/50"]}>

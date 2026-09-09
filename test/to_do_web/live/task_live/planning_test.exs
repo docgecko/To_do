@@ -195,6 +195,12 @@ defmodule ToDoWeb.TaskLive.PlanningTest do
     assert html =~ "Plan today"
     assert html =~ ~s{href="/today?plan=1&amp;view=board"}
 
+    # Board cards are links, so goal chips inside them must be spans — an
+    # <a> nested in an <a> gets split by the HTML parser and the chip
+    # falls out beside the title, crushing it.
+    assert html =~ ~r{<span[^>]*title="Goal: Ship it"}
+    refute html =~ ~r{<a[^>]*edit=task[^>]*>(?:(?!</a>).)*<a }s
+
     lv |> element(~s{a[href="/today?plan=1&view=board"]}) |> render_click()
     assert render(lv) =~ "Candidates"
 
