@@ -57,6 +57,50 @@ defmodule ToDoWeb.NotificationsBellTest do
     assert has_element?(lv, "button", "Mark all read")
   end
 
+  test "rows keep their place when toggled and a just-read row never drops off the list",
+       %{conn: conn, user: user, a: a, b: b} do
+    read_at = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    # 25 newer, already-read notifications: more than the recent window.
+    newer =
+      for i <- 1..25 do
+        Repo.insert!(%Notification{
+          user_id: user.id,
+          kind: "task_due_soon",
+          body: "Newer #{i}",
+          read_at: read_at
+        })
+      end
+
+    {:ok, lv, _html} = live(conn, ~p"/today")
+
+    ids = fn -> Regex.scan(~r/id="notification-(\d+)"/, render(lv)) |> Enum.map(fn [_, id] -> String.to_integer(id) end) end
+
+    # Newest first; the two old unread rows are still shown despite falling
+    # outside the 20-row recent window; the 5 oldest read ones are not.
+    shown = ids.()
+    newest_20 = newer |> Enum.reverse() |> Enum.take(20) |> Enum.map(& &1.id)
+    assert shown == newest_20 ++ [b.id, a.id]
+
+    # Mark old A read: it is neither unread nor recent, but it stays on
+    # screen, in the same position.
+    lv |> element("#notification-#{a.id}-toggle") |> render_click()
+    assert has_element?(lv, "#notification-#{a.id}-toggle[title='Mark as unread']")
+    assert ids.() == shown
+
+    # Flip it back; still the same row order.
+    lv |> element("#notification-#{a.id}-toggle") |> render_click()
+    assert has_element?(lv, "#notification-#{a.id}-toggle[title='Mark as read']")
+    assert ids.() == shown
+
+    # Clicking the text of an already-read row (no link target) neither
+    # re-stamps read_at nor removes it.
+    [first | _] = newer |> Enum.reverse()
+    lv |> element("#notification-#{first.id} button[phx-click='mark_notification_read']") |> render_click()
+    assert Notifications.get_for_user(user.id, first.id).read_at == read_at
+    assert ids.() == shown
+  end
+
   test "the toggle is scoped to the signed-in user", %{conn: conn, user: user} do
     other = ToDo.AccountsFixtures.user_fixture()
 

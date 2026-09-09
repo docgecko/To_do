@@ -43,12 +43,36 @@ defmodule ToDo.Notifications do
 
   ## Reads
 
-  @doc "Most recent N notifications for a user (default 10), unread first."
-  def list_recent(user_id, limit \\ 10) do
+  @recent_window 20
+  @max_rows 50
+
+  @doc """
+  The bell's list, newest first: the user's most recent notifications
+  (`:limit`, default #{@recent_window}) plus every unread one regardless of
+  age, so nothing awaiting attention hides below the fold.
+
+  Rows keep their chronological position when flipped read/unread, and
+  `:keep` (ids currently on screen) are retained even if they'd otherwise
+  fall outside the window — a row the user just marked read must not
+  vanish from under the cursor. Capped at #{@max_rows} rows.
+  """
+  def list_recent(user_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, @recent_window)
+    keep = Keyword.get(opts, :keep, [])
+
+    recent_ids =
+      from(n in Notification,
+        where: n.user_id == ^user_id,
+        order_by: [desc: n.inserted_at, desc: n.id],
+        limit: ^limit,
+        select: n.id
+      )
+
     from(n in Notification,
       where: n.user_id == ^user_id,
-      order_by: [asc_nulls_first: n.read_at, desc: n.inserted_at],
-      limit: ^limit
+      where: is_nil(n.read_at) or n.id in subquery(recent_ids) or n.id in ^keep,
+      order_by: [desc: n.inserted_at, desc: n.id],
+      limit: @max_rows
     )
     |> Repo.all()
   end
@@ -104,6 +128,10 @@ defmodule ToDo.Notifications do
         end
     end
   end
+
+  # Already read: leave the original read_at alone (re-stamping it would
+  # reshuffle nothing now, but there's no reason to touch the row either).
+  def mark_read(%Notification{read_at: %DateTime{}} = notif), do: {:ok, notif}
 
   def mark_read(%Notification{} = notif) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)

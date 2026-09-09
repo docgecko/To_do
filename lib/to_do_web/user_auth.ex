@@ -350,7 +350,7 @@ defmodule ToDoWeb.UserAuth do
 
     socket
     |> Phoenix.Component.assign(:unread_notifications, ToDo.Notifications.unread_count(user.id))
-    |> Phoenix.Component.assign(:recent_notifications, ToDo.Notifications.list_recent(user.id, 10))
+    |> Phoenix.Component.assign(:recent_notifications, ToDo.Notifications.list_recent(user.id))
     |> Phoenix.LiveView.attach_hook(:notifications_info, :handle_info, &handle_notification_info/2)
     |> Phoenix.LiveView.attach_hook(
       :notifications_event,
@@ -359,16 +359,8 @@ defmodule ToDoWeb.UserAuth do
     )
   end
 
-  defp handle_notification_info({:notification, :created, notif}, socket) do
-    user_id = socket.assigns.current_scope.user.id
-    recent = [notif | socket.assigns.recent_notifications] |> Enum.take(10)
-
-    socket =
-      socket
-      |> Phoenix.Component.assign(:recent_notifications, recent)
-      |> Phoenix.Component.assign(:unread_notifications, ToDo.Notifications.unread_count(user_id))
-
-    {:halt, socket}
+  defp handle_notification_info({:notification, :created, _notif}, socket) do
+    {:halt, refresh_notifications(socket)}
   end
 
   defp handle_notification_info({:notification, event, _notif}, socket)
@@ -385,11 +377,17 @@ defmodule ToDoWeb.UserAuth do
   # Re-read the bell's list + badge count. Called both from the PubSub
   # handlers (so other tabs update) and directly after a write in this
   # LiveView (so the tab that clicked doesn't wait on its own broadcast).
+  # Rows already on screen are kept (`keep:`) so toggling one read/unread
+  # never makes it vanish from the open menu.
   defp refresh_notifications(socket) do
     user_id = socket.assigns.current_scope.user.id
+    on_screen = Enum.map(socket.assigns[:recent_notifications] || [], & &1.id)
 
     socket
-    |> Phoenix.Component.assign(:recent_notifications, ToDo.Notifications.list_recent(user_id, 10))
+    |> Phoenix.Component.assign(
+      :recent_notifications,
+      ToDo.Notifications.list_recent(user_id, keep: on_screen)
+    )
     |> Phoenix.Component.assign(:unread_notifications, ToDo.Notifications.unread_count(user_id))
   end
 
