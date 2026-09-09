@@ -5,6 +5,9 @@ defmodule ToDo.Plans.TaskPlan do
   schema "task_plans" do
     field :planned_on, :date
     field :position, :integer, default: 0
+    # Set when a repeating task's occurrence was completed on this day
+    # (the task itself stays done: false and its due date advances).
+    field :completed_at, :utc_datetime
 
     belongs_to :user, ToDo.Accounts.User
     belongs_to :task, ToDo.Boards.Task

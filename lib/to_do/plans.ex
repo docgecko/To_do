@@ -73,6 +73,26 @@ defmodule ToDo.Plans do
     |> Repo.exists?()
   end
 
+  def get_plan(user_id, task_id, %Date{} = date) when is_integer(user_id) do
+    Repo.get_by(TaskPlan, user_id: user_id, task_id: to_int(task_id), planned_on: date)
+  end
+
+  @doc """
+  "Done for today?" for a plan/smart row. True when the task itself is
+  done, or when a repeating task's occurrence was completed on this
+  plan row (`plan.completed_at`). Rows without a plan key (plain smart
+  rows) fall back to `task.done`.
+  """
+  def row_done?(%{task: %Task{done: true}}), do: true
+  def row_done?(%{plan: %TaskPlan{completed_at: %DateTime{}}}), do: true
+  def row_done?(_row), do: false
+
+  @doc "Record (or clear) a completed occurrence on a plan row."
+  def set_completed(%TaskPlan{} = plan, completed?) when is_boolean(completed?) do
+    value = if completed?, do: DateTime.utc_now() |> DateTime.truncate(:second), else: nil
+    plan |> Ecto.Changeset.change(completed_at: value) |> Repo.update()
+  end
+
   # -- Writing a plan --
 
   @doc """
@@ -183,7 +203,7 @@ defmodule ToDo.Plans do
   `%{task_id => [goal]}` map from `Goals.goals_by_task_ids/1`.
   """
   def coverage(rows, task_goals) when is_list(rows) and is_map(task_goals) do
-    open = Enum.reject(rows, & &1.task.done)
+    open = Enum.reject(rows, &row_done?/1)
     total = length(open)
     est = fn r -> r.task.estimated_minutes || 0 end
 
@@ -213,8 +233,8 @@ defmodule ToDo.Plans do
       total_minutes: total_minutes,
       minutes_by_goal: minutes_by_goal,
       goal_share: if(total_minutes > 0, do: goal_minutes / total_minutes, else: 0.0),
-      done: Enum.count(rows, & &1.task.done),
-      done_minutes: rows |> Enum.filter(& &1.task.done) |> Enum.map(est) |> Enum.sum()
+      done: Enum.count(rows, &row_done?/1),
+      done_minutes: rows |> Enum.filter(&row_done?/1) |> Enum.map(est) |> Enum.sum()
     }
   end
 
@@ -253,13 +273,15 @@ defmodule ToDo.Plans do
           conflict_target: [:user_id, :date]
         )
 
-      Enum.each(rows, fn %{task: task} ->
-        case decision_for(decisions, task.id) do
-          {:defer, target} when not task.done ->
+      Enum.each(rows, fn %{task: task} = row ->
+        # Done rows (task done, or a completed repeating occurrence) just
+        # leave the plan; decisions only apply to unfinished work.
+        case {decision_for(decisions, task.id), row_done?(row)} do
+          {{:defer, target}, false} ->
             {:ok, _} = defer_task(user_id, task.id, target)
             maybe_shift_due(task, target, tz, date)
 
-          :anytime when not task.done ->
+          {:anytime, false} ->
             unplan_task(user_id, task.id)
             {:ok, _} = Boards.update_task(task, %{"due_at" => nil})
 

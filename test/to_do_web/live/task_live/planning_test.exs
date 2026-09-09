@@ -231,6 +231,58 @@ defmodule ToDoWeb.TaskLive.PlanningTest do
     assert html =~ "Waiting · 3"
   end
 
+  test "ticking a planned repeating task records the occurrence instead of silently rescheduling", ctx do
+    %{conn: conn, user: user, today: today, tz: tz} = ctx
+    board = Boards.list_boards_for_user(user.id) |> hd()
+    [%{columns: [%{id: col_id} | _]} | _] = ToDo.Inbox.triage_destinations(user.id)
+    _ = board
+
+    due = DateTime.new!(today, ~T[16:00:00], tz) |> DateTime.shift_zone!("Etc/UTC")
+
+    {:ok, weekly} =
+      Boards.create_task(%{
+        "title" => "Weekly meeting",
+        "category_id" => to_string(col_id),
+        "created_by_id" => user.id,
+        "due_at" => due,
+        "repeat" => "week",
+        "estimated_minutes" => "60"
+      })
+
+    {:ok, _} = Plans.plan_task(user.id, weekly.id, today)
+    {:ok, lv, html} = live(conn, ~p"/today")
+    refute html =~ "done 1/"
+
+    # First tick: occurrence recorded, due date moves one week, row shows done.
+    lv |> element(~s{#today-plan-#{weekly.id} input[type=checkbox]}) |> render_click()
+    html = render(lv)
+    assert html =~ "done 1/"
+    assert html =~ ~s{id="today-plan-#{weekly.id}"}
+    assert %{completed_at: %DateTime{}} = Plans.get_plan(user.id, weekly.id, today)
+    advanced = Boards.get_task!(weekly.id)
+    refute advanced.done
+    assert DateTime.diff(advanced.due_at, due, :day) == 7
+
+    # Second tick (untick): clears the occurrence, does NOT move the date again.
+    lv |> element(~s{#today-plan-#{weekly.id} input[type=checkbox]}) |> render_click()
+    assert %{completed_at: nil} = Plans.get_plan(user.id, weekly.id, today)
+    assert DateTime.diff(Boards.get_task!(weekly.id).due_at, due, :day) == 7
+    refute render(lv) =~ "done 1/"
+
+    # Tick once more, then wrap up: counted as done and off the plan.
+    lv |> element(~s{#today-plan-#{weekly.id} input[type=checkbox]}) |> render_click()
+    assert DateTime.diff(Boards.get_task!(weekly.id).due_at, due, :day) == 7
+    lv |> element(~s{button[phx-click="open_wrap_up"]}) |> render_click()
+    refute render(lv) =~ "Unfinished ·"
+    lv |> element(~s{button[phx-click="finish_day"]}) |> render_click()
+
+    review = Plans.get_review(user.id, today)
+    assert review.done_count == 1
+    assert review.done_minutes == 60
+    assert Plans.planned_task_ids(user.id, today) == []
+    assert Plans.planned_task_ids(user.id, Date.add(today, 1)) == []
+  end
+
   test "another user's plan on a shared task is invisible to me", ctx do
     %{user: user, today: today, t_today: t_today} = ctx
     other = ToDo.AccountsFixtures.user_fixture()

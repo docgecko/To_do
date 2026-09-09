@@ -113,7 +113,7 @@ defmodule ToDoWeb.TaskLive.Smart do
     task = Boards.get_task!(id)
 
     if Boards.task_permission(task, user_id) in [:owner, :edit] do
-      {:ok, _} = Boards.toggle_task_done(task)
+      complete_or_toggle(socket, task)
       {:noreply, refresh(socket)}
     else
       {:noreply, put_flash(socket, :error, "You only have view access to that task.")}
@@ -221,7 +221,7 @@ defmodule ToDoWeb.TaskLive.Smart do
 
     decisions =
       socket.assigns.plan_rows
-      |> Enum.reject(& &1.task.done)
+      |> Enum.reject(&Plans.row_done?/1)
       |> Map.new(fn row -> {to_string(row.task.id), tomorrow} end)
 
     {:noreply, assign(socket, :wrap_up, %{decisions: decisions, reflection: ""})}
@@ -262,6 +262,38 @@ defmodule ToDoWeb.TaskLive.Smart do
         {:noreply, put_flash(socket, :error, "Couldn't wrap up the day — try again.")}
     end
   end
+
+  # Ticking a task. A repeating task never becomes `done` — completing it
+  # advances its due date and leaves it unticked. On a plan that read as
+  # "nothing happened" (the row stayed), so people clicked again and
+  # pushed the date out one interval per click. For a planned repeating
+  # task we record the completed occurrence on the plan row instead: the
+  # row ticks, strikes through and counts as done at wrap-up. Unticking
+  # clears the occurrence without touching the (already advanced) date.
+  defp complete_or_toggle(socket, task) do
+    user_id = socket.assigns.current_scope.user.id
+
+    plan =
+      if socket.assigns.scope == :today,
+        do: Plans.get_plan(user_id, task.id, socket.assigns.plan_date),
+        else: nil
+
+    cond do
+      plan && repeating?(task) && is_nil(plan.completed_at) ->
+        {:ok, _} = Boards.toggle_task_done(task)
+        {:ok, _} = Plans.set_completed(plan, true)
+
+      plan && repeating?(task) ->
+        {:ok, _} = Plans.set_completed(plan, false)
+
+      true ->
+        {:ok, _} = Boards.toggle_task_done(task)
+    end
+
+    :ok
+  end
+
+  defp repeating?(task), do: task.repeat in ["day", "week", "month", "year"] and not is_nil(task.due_at)
 
   # True for scopes that allow user-controlled drag-reordering of the LIST view.
   defp reorderable?(scope), do: scope in [:today, :upcoming, :anytime, :waiting]
@@ -321,7 +353,7 @@ defmodule ToDoWeb.TaskLive.Smart do
   defp badge_rows(true, plan_rows, _rows), do: plan_rows
   defp badge_rows(false, _plan_rows, rows), do: rows
 
-  defp open_rows(rows), do: Enum.reject(rows, & &1.task.done)
+  defp open_rows(rows), do: Enum.reject(rows, &Plans.row_done?/1)
 
   defp estimate_total(rows) do
     rows |> open_rows() |> Enum.map(&(&1.task.estimated_minutes || 0)) |> Enum.sum()
@@ -332,12 +364,12 @@ defmodule ToDoWeb.TaskLive.Smart do
   # After 18:00 in the user's zone, nudge towards wrap-up (banner only).
   defp evening?(tz), do: DateTime.now!(tz).hour >= 18
 
-  defp unfinished(plan_rows), do: Enum.reject(plan_rows, & &1.task.done)
+  defp unfinished(plan_rows), do: Enum.reject(plan_rows, &Plans.row_done?/1)
 
   # Goals touched by DONE planned tasks — the "moved forward" line.
   defp goals_moved(plan_rows, task_goals) do
     plan_rows
-    |> Enum.filter(& &1.task.done)
+    |> Enum.filter(&Plans.row_done?/1)
     |> Enum.flat_map(&Map.get(task_goals, &1.task.id, []))
     |> Enum.group_by(& &1.id)
     |> Enum.map(fn {_, [g | _] = gs} -> {g, length(gs)} end)
@@ -447,6 +479,10 @@ defmodule ToDoWeb.TaskLive.Smart do
   attr :handle_attr, :string, default: "data-list-drag-handle"
 
   defp smart_row(assigns) do
+    # Done for display purposes: task done, or a completed occurrence on
+    # this plan row (repeating tasks).
+    assigns = assign(assigns, :done?, Plans.row_done?(assigns.row))
+
     ~H"""
     <li
       id={"#{@id_prefix}-#{@row.task.id}"}
@@ -464,7 +500,7 @@ defmodule ToDoWeb.TaskLive.Smart do
       <input
         :if={@scope != :trash and @mode != :candidate}
         type="checkbox"
-        checked={@row.task.done}
+        checked={@done?}
         phx-click="toggle_done"
         phx-value-id={@row.task.id}
         class="checkbox checkbox-sm mt-1"
@@ -500,13 +536,13 @@ defmodule ToDoWeb.TaskLive.Smart do
           class="block hover:underline"
           title="Click to edit task"
         >
-          <div class={["break-words leading-tight", @row.task.done && "line-through text-base-content/50"]}>
+          <div class={["break-words leading-tight", @done? && "line-through text-base-content/50"]}>
             {@row.task.title}
           </div>
           <div :if={@row.task.notes && @row.task.notes != ""} class="text-xs text-base-content/60 leading-tight whitespace-pre-line">{@row.task.notes}</div>
         </.link>
         <div :if={@scope == :trash}>
-          <div class={["break-words leading-tight", @row.task.done && "line-through text-base-content/50"]}>
+          <div class={["break-words leading-tight", @done? && "line-through text-base-content/50"]}>
             {@row.task.title}
           </div>
           <div :if={@row.task.notes && @row.task.notes != ""} class="text-xs text-base-content/60 leading-tight whitespace-pre-line">{@row.task.notes}</div>
@@ -536,7 +572,7 @@ defmodule ToDoWeb.TaskLive.Smart do
           <%!-- No estimate yet: a "~?" that opens the quick-pick inline, so
                estimating happens while planning, not in a separate modal. --%>
           <div
-            :if={is_nil(@row.task.estimated_minutes) and @mode in [:planned, :other, :candidate] and not @row.task.done}
+            :if={is_nil(@row.task.estimated_minutes) and @mode in [:planned, :other, :candidate] and not @done?}
             class="dropdown dropdown-end"
           >
             <div
