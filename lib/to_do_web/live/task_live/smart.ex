@@ -284,7 +284,10 @@ defmodule ToDoWeb.TaskLive.Smart do
         {:ok, _} = Plans.set_completed(plan, true)
 
       plan && repeating?(task) ->
+        # Un-tick: clear the occurrence AND roll the date back, so a
+        # tick/untick/tick cycle lands exactly one interval ahead.
         {:ok, _} = Plans.set_completed(plan, false)
+        {:ok, _} = Boards.undo_repeat_advance(task)
 
       true ->
         {:ok, _} = Boards.toggle_task_done(task)

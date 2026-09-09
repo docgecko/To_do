@@ -263,13 +263,14 @@ defmodule ToDoWeb.TaskLive.PlanningTest do
     refute advanced.done
     assert DateTime.diff(advanced.due_at, due, :day) == 7
 
-    # Second tick (untick): clears the occurrence, does NOT move the date again.
+    # Un-tick: clears the occurrence and rolls the date back, so the
+    # cycle is reversible rather than drifting a week per tick.
     lv |> element(~s{#today-plan-#{weekly.id} input[type=checkbox]}) |> render_click()
     assert %{completed_at: nil} = Plans.get_plan(user.id, weekly.id, today)
-    assert DateTime.diff(Boards.get_task!(weekly.id).due_at, due, :day) == 7
+    assert DateTime.diff(Boards.get_task!(weekly.id).due_at, due, :day) == 0
     refute render(lv) =~ "done 1/"
 
-    # Tick once more, then wrap up: counted as done and off the plan.
+    # Tick once more (advances again, net +7), then wrap up: counted as done and off the plan.
     lv |> element(~s{#today-plan-#{weekly.id} input[type=checkbox]}) |> render_click()
     assert DateTime.diff(Boards.get_task!(weekly.id).due_at, due, :day) == 7
     lv |> element(~s{button[phx-click="open_wrap_up"]}) |> render_click()

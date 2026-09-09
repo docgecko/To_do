@@ -542,6 +542,21 @@ defmodule ToDo.Boards do
     end
   end
 
+  @doc """
+  Inverse of the advance `toggle_task_done/1` applies to a repeating
+  task: moves its due date back one interval. Used when a completed
+  occurrence is un-ticked on a daily plan, so tick/untick is reversible
+  instead of drifting the date forward on every cycle.
+  """
+  def undo_repeat_advance(%Task{} = task) do
+    if task.repeat in ["day", "week", "month", "year"] and not is_nil(task.due_at) do
+      every = max(task.repeat_every || 1, 1)
+      update_task(task, %{"due_at" => advance_due_at(task.due_at, task.repeat, -every)})
+    else
+      {:ok, task}
+    end
+  end
+
   defp past_repeat_until?(_next, nil), do: false
 
   defp past_repeat_until?(%DateTime{} = next, %DateTime{} = until) do
