@@ -376,20 +376,55 @@ defmodule ToDoWeb.Layouts do
           <li :if={@recent == []} class="px-3 py-6 text-center text-sm text-base-content/60">
             You're all caught up.
           </li>
-          <li :for={n <- @recent} class={["px-3 py-2 cursor-pointer hover:bg-base-200/60", is_nil(n.read_at) && "bg-primary/5"]}>
+          <%!-- Each row is two sibling buttons (never nested — the HTML
+               parser would split them): the body opens the target and
+               marks it read; the dot on the right flips read/unread in
+               place. Rows carry ids so LiveView moves rather than
+               recreates them when the unread-first order changes, which
+               keeps focus (and therefore the dropdown) where it was. --%>
+          <li
+            :for={n <- @recent}
+            id={"notification-#{n.id}"}
+            class={[
+              "flex items-start gap-1 pl-2 pr-1 py-2 border-l-2 hover:bg-base-200/60",
+              if(is_nil(n.read_at), do: "border-primary bg-primary/5", else: "border-transparent")
+            ]}
+          >
             <button
               type="button"
               phx-click="mark_notification_read"
               phx-value-id={n.id}
               phx-value-href={notification_target(n)}
-              class="w-full text-left flex gap-2 items-start"
+              class="flex-1 min-w-0 text-left flex gap-2 items-start cursor-pointer"
             >
-              <.icon name={notification_icon(n.kind)} class="size-4 mt-0.5 shrink-0 text-base-content/70" />
+              <.icon
+                name={notification_icon(n.kind)}
+                class={"size-4 mt-0.5 shrink-0 " <> if(is_nil(n.read_at), do: "text-base-content/80", else: "text-base-content/40")}
+              />
               <div class="flex-1 min-w-0">
-                <div class={["text-sm", is_nil(n.read_at) && "font-medium"]}>{n.body}</div>
-                <div class="text-xs text-base-content/50">{relative_time(n.inserted_at)}</div>
+                <div class={["text-sm", if(is_nil(n.read_at), do: "font-semibold", else: "text-base-content/60")]}>
+                  {n.body}
+                </div>
+                <div class="text-xs text-base-content/50">
+                  {relative_time(n.inserted_at)}
+                  <span :if={is_nil(n.read_at)} class="text-primary font-medium">· Unread</span>
+                  <span :if={n.read_at} class="text-base-content/40">· Read</span>
+                </div>
               </div>
-              <span :if={is_nil(n.read_at)} class="size-2 rounded-full bg-primary mt-1.5 shrink-0" />
+            </button>
+            <button
+              type="button"
+              id={"notification-#{n.id}-toggle"}
+              phx-click="toggle_notification_read"
+              phx-value-id={n.id}
+              title={if is_nil(n.read_at), do: "Mark as read", else: "Mark as unread"}
+              aria-label={if is_nil(n.read_at), do: "Mark as read", else: "Mark as unread"}
+              class="size-7 shrink-0 inline-flex items-center justify-center rounded-full hover:bg-base-300/60 cursor-pointer"
+            >
+              <span class={[
+                "size-2.5 rounded-full border-2 border-primary",
+                if(is_nil(n.read_at), do: "bg-primary", else: "bg-transparent opacity-50")
+              ]} />
             </button>
           </li>
         </ul>

@@ -127,7 +127,7 @@ defmodule ToDoWeb.TaskLive.PlanningTest do
     {:ok, _} = Boards.toggle_task_done(Boards.get_task!(t_anytime.id))
 
     {:ok, lv, _} = live(conn, ~p"/today")
-    lv |> element(~s{button[phx-click="open_wrap_up"]}) |> render_click()
+    lv |> element(~s{button.btn-outline[phx-click="open_wrap_up"]}) |> render_click()
     html = render(lv)
     assert html =~ "Wrap up"
     assert html =~ "You planned"
@@ -171,7 +171,7 @@ defmodule ToDoWeb.TaskLive.PlanningTest do
     original_due = Boards.get_task!(t_today.id).due_at
 
     {:ok, lv, _} = live(conn, ~p"/today")
-    lv |> element(~s{button[phx-click="open_wrap_up"]}) |> render_click()
+    lv |> element(~s{button.btn-outline[phx-click="open_wrap_up"]}) |> render_click()
 
     # Keep the due-today task; send the other to Anytime (clears its nil due date harmlessly).
     lv
@@ -273,7 +273,7 @@ defmodule ToDoWeb.TaskLive.PlanningTest do
     # Tick once more (advances again, net +7), then wrap up: counted as done and off the plan.
     lv |> element(~s{#today-plan-#{weekly.id} input[type=checkbox]}) |> render_click()
     assert DateTime.diff(Boards.get_task!(weekly.id).due_at, due, :day) == 7
-    lv |> element(~s{button[phx-click="open_wrap_up"]}) |> render_click()
+    lv |> element(~s{button.btn-outline[phx-click="open_wrap_up"]}) |> render_click()
     refute render(lv) =~ "Unfinished ·"
     lv |> element(~s{button[phx-click="finish_day"]}) |> render_click()
 

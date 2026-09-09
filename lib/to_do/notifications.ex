@@ -117,6 +117,21 @@ defmodule ToDo.Notifications do
     end)
   end
 
+  @doc "Flip a notification back to unread (clears `read_at`)."
+  def mark_unread(%Notification{} = notif) do
+    notif
+    |> Ecto.Changeset.change(read_at: nil)
+    |> Repo.update()
+    |> tap(fn
+      {:ok, updated} -> broadcast(updated, :unread)
+      _ -> :ok
+    end)
+  end
+
+  @doc "Toggle a single notification between read and unread."
+  def toggle_read(%Notification{read_at: nil} = notif), do: mark_read(notif)
+  def toggle_read(%Notification{} = notif), do: mark_unread(notif)
+
   def mark_all_read(user_id) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 

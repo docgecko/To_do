@@ -371,35 +371,27 @@ defmodule ToDoWeb.UserAuth do
     {:halt, socket}
   end
 
-  defp handle_notification_info({:notification, :read, _notif}, socket) do
-    user_id = socket.assigns.current_scope.user.id
-
-    socket =
-      socket
-      |> Phoenix.Component.assign(
-        :recent_notifications,
-        ToDo.Notifications.list_recent(user_id, 10)
-      )
-      |> Phoenix.Component.assign(:unread_notifications, ToDo.Notifications.unread_count(user_id))
-
-    {:halt, socket}
+  defp handle_notification_info({:notification, event, _notif}, socket)
+       when event in [:read, :unread] do
+    {:halt, refresh_notifications(socket)}
   end
 
   defp handle_notification_info({:notifications, :all_read}, socket) do
-    user_id = socket.assigns.current_scope.user.id
-
-    socket =
-      socket
-      |> Phoenix.Component.assign(
-        :recent_notifications,
-        ToDo.Notifications.list_recent(user_id, 10)
-      )
-      |> Phoenix.Component.assign(:unread_notifications, 0)
-
-    {:halt, socket}
+    {:halt, refresh_notifications(socket)}
   end
 
   defp handle_notification_info(_msg, socket), do: {:cont, socket}
+
+  # Re-read the bell's list + badge count. Called both from the PubSub
+  # handlers (so other tabs update) and directly after a write in this
+  # LiveView (so the tab that clicked doesn't wait on its own broadcast).
+  defp refresh_notifications(socket) do
+    user_id = socket.assigns.current_scope.user.id
+
+    socket
+    |> Phoenix.Component.assign(:recent_notifications, ToDo.Notifications.list_recent(user_id, 10))
+    |> Phoenix.Component.assign(:unread_notifications, ToDo.Notifications.unread_count(user_id))
+  end
 
   defp handle_notification_event("mark_notification_read", %{"id" => id} = params, socket) do
     user_id = socket.assigns.current_scope.user.id
@@ -423,17 +415,32 @@ defmodule ToDoWeb.UserAuth do
               Phoenix.LiveView.push_navigate(socket, to: href)
 
             _ ->
-              socket
+              refresh_notifications(socket)
           end
 
         {:halt, socket}
     end
   end
 
+  # The per-row read/unread control: flips just that notification and
+  # stays on the page (no navigation), so the dropdown keeps its place.
+  defp handle_notification_event("toggle_notification_read", %{"id" => id}, socket) do
+    user_id = socket.assigns.current_scope.user.id
+
+    case ToDo.Notifications.get_for_user(user_id, id) do
+      nil ->
+        {:halt, socket}
+
+      notif ->
+        {:ok, _} = ToDo.Notifications.toggle_read(notif)
+        {:halt, refresh_notifications(socket)}
+    end
+  end
+
   defp handle_notification_event("mark_all_notifications_read", _params, socket) do
     user_id = socket.assigns.current_scope.user.id
     {:ok, _} = ToDo.Notifications.mark_all_read(user_id)
-    {:halt, socket}
+    {:halt, refresh_notifications(socket)}
   end
 
   defp handle_notification_event(_event, _params, socket), do: {:cont, socket}
