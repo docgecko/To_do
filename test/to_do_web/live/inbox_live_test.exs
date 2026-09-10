@@ -66,8 +66,12 @@ defmodule ToDoWeb.InboxLiveTest do
     assert html =~ ~s{value="Write risk summary"}
 
     # Set due/effort via the buttons, tick the goal and today's plan, then Move.
-    lv |> element(~s{button[phx-value-field="due"][phx-value-value="today"]}) |> render_click()
-    lv |> element(~s{button[phx-value-field="estimated_minutes"][phx-value-value="30"]}) |> render_click()
+    # Never `phx-value-value` on a button: the LiveView client replaces a
+    # "value" key with the button's own empty value property, so the pick
+    # would arrive as "" (the When buttons silently did nothing).
+    refute render(lv) =~ "phx-value-value"
+    lv |> element(~s{button[phx-value-field="due"][phx-value-to="today"]}) |> render_click()
+    lv |> element(~s{button[phx-value-field="estimated_minutes"][phx-value-to="30"]}) |> render_click()
 
     lv
     |> form("#triage-form", triage: %{category_id: col.id, goal_ids: ["", to_string(goal.id)], plan_today: "true"})

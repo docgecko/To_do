@@ -120,7 +120,10 @@ defmodule ToDoWeb.InboxLive do
     end
   end
 
-  def handle_event("set", %{"field" => field, "value" => value}, socket) do
+  # The quick-pick buttons send `phx-value-to`, not `phx-value-value`: the
+  # LiveView client overwrites a "value" key with the button element's own
+  # (empty) value property, so a `phx-value-value` never reaches the server.
+  def handle_event("set", %{"field" => field, "to" => value}, socket) do
     {:noreply, set_triage(socket, field, value)}
   end
 
@@ -345,7 +348,7 @@ defmodule ToDoWeb.InboxLive do
                     type="button"
                     phx-click="set"
                     phx-value-field="due"
-                    phx-value-value={v}
+                    phx-value-to={v}
                     class={["btn btn-xs", @triage["due"] == v && "btn-primary", @triage["due"] != v && "btn-ghost"]}
                   >
                     {label}
@@ -361,13 +364,13 @@ defmodule ToDoWeb.InboxLive do
                     type="button"
                     phx-click="set"
                     phx-value-field="estimated_minutes"
-                    phx-value-value={v}
+                    phx-value-to={v}
                     class={["btn btn-xs", @triage["estimated_minutes"] == v && "btn-primary", @triage["estimated_minutes"] != v && "btn-ghost"]}
                     title={"Press #{i}"}
                   >
                     {label}
                   </button>
-                  <button type="button" phx-click="set" phx-value-field="estimated_minutes" phx-value-value="" class="btn btn-ghost btn-xs">
+                  <button type="button" phx-click="set" phx-value-field="estimated_minutes" phx-value-to="" class="btn btn-ghost btn-xs">
                     Clear
                   </button>
                 </div>
