@@ -22,25 +22,35 @@ defmodule ToDoWeb.InboxLiveTest do
     %{board: board, col: col, goal: goal}
   end
 
-  test "Quick Add captures into the Inbox from any page and keeps the box open", %{conn: conn, user: user} do
-    {:ok, lv, html} = live(conn, ~p"/today")
+  test "Quick Add captures into the Inbox from any page and closes once the item is in",
+       %{conn: conn, user: user} do
+    closed = "#quick-add [data-quick-add-modal][hidden]"
+    {:ok, lv, _html} = live(conn, ~p"/today")
     # Closed until ⌘K (the hook pushes "open" to the component).
-    assert html =~ ~s{phx-hook="QuickAdd" phx-target="1" hidden}
+    assert has_element?(lv, closed)
     lv |> element("#quick-add") |> render_hook("open", %{})
-    refute render(lv) =~ ~s{phx-hook="QuickAdd" phx-target="1" hidden}
+    refute has_element?(lv, closed)
 
+    # Enter captures, the box closes, and the hook is told to show the toast.
     lv |> form("#quick-add form", item: %{title: "Chase Garry"}) |> render_submit()
-    lv |> form("#quick-add form", item: %{title: "Book dentist", notes: "ask about x-ray"}) |> render_submit()
+    assert has_element?(lv, closed)
+    assert_push_event(lv, "quick-add:captured", %{title: "Chase Garry"})
 
-    html = render(lv)
-    assert html =~ "Captured · 2"
-    # Still open (no `hidden` on the root) and the title field is blank again.
-    refute html =~ ~s{id="quick-add" phx-hook="QuickAdd" hidden}
+    # Reopen for the next one: the title field is blank again.
+    lv |> element("#quick-add") |> render_hook("open", %{})
+    refute has_element?(lv, closed)
+    refute has_element?(lv, "#quick-add input[name='item[title]'][value='Chase Garry']")
+    lv |> form("#quick-add form", item: %{title: "Book dentist", notes: "ask about x-ray"}) |> render_submit()
+    assert has_element?(lv, closed)
+
     assert [%{title: "Chase Garry"}, %{title: "Book dentist", notes: "ask about x-ray"}] =
              Inbox.list_open(user.id)
 
-    # Blank titles are rejected, not silently dropped.
+    # Blank titles are rejected, not silently dropped — and the box stays
+    # open so the title can be fixed.
+    lv |> element("#quick-add") |> render_hook("open", %{})
     lv |> form("#quick-add form", item: %{title: "   "}) |> render_submit()
+    refute has_element?(lv, closed)
     assert length(Inbox.list_open(user.id)) == 2
   end
 

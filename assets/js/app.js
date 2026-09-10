@@ -388,7 +388,7 @@ Hooks.QuickAdd = {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault()
         this.pushEventTo(this.el, "open", {})
-      } else if (e.key === "Escape" && !this.el.hidden) {
+      } else if (e.key === "Escape" && this.isOpen()) {
         this.pushEventTo(this.el, "close", {})
       }
     }
@@ -396,15 +396,34 @@ Hooks.QuickAdd = {
     window.addEventListener("keydown", this.onKey)
     window.addEventListener("orelle:quick-add", this.onOpen)
     this.handleEvent("quick-add:focus", () => this.focus())
+    // Capture closes the box; confirm it landed with a short toast.
+    this.handleEvent("quick-add:captured", ({title}) => this.showToast(title))
   },
   updated() {
-    if (!this.el.hidden) this.focus()
+    if (this.isOpen()) this.focus()
+  },
+  modal() {
+    return this.el.querySelector("[data-quick-add-modal]")
+  },
+  isOpen() {
+    const m = this.modal()
+    return !!m && !m.hidden
   },
   focus() {
     const input = this.el.querySelector("input[name='item[title]']")
     if (input && document.activeElement !== input) input.focus()
   },
+  showToast(title) {
+    const toast = this.el.querySelector("[data-quick-add-toast]")
+    if (!toast) return
+    const t = toast.querySelector("[data-toast-title]")
+    if (t) t.textContent = title || ""
+    toast.hidden = false
+    clearTimeout(this.toastTimer)
+    this.toastTimer = setTimeout(() => { toast.hidden = true }, 2500)
+  },
   destroyed() {
+    clearTimeout(this.toastTimer)
     window.removeEventListener("keydown", this.onKey)
     window.removeEventListener("orelle:quick-add", this.onOpen)
   }
