@@ -306,7 +306,7 @@ defmodule ToDoWeb.Layouts do
       <span
         :if={@badge > 0}
         class={[
-          "text-xs font-medium px-1.5 rounded-full",
+          "text-xs font-medium font-mono px-1.5 rounded-full",
           @active && "bg-primary-content/20 text-primary-content",
           !@active && "bg-primary/15 text-primary"
         ]}
@@ -332,7 +332,7 @@ defmodule ToDoWeb.Layouts do
       <span
         :if={@badge > 0}
         class={[
-          "text-xs font-medium px-1.5 rounded-full",
+          "text-xs font-medium font-mono px-1.5 rounded-full",
           @active && "bg-primary-content/20 text-primary-content",
           !@active && "bg-primary/15 text-primary"
         ]}

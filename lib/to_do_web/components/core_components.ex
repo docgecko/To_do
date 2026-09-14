@@ -236,7 +236,7 @@ defmodule ToDoWeb.CoreComponents do
     ~H"""
     <span :if={@minutes} class="inline-flex items-center gap-1" title="Estimated effort">
       <.icon name="hero-clock" class={@class} />
-      <span>~{format_minutes(@minutes)}</span>
+      <span class="font-mono">~{format_minutes(@minutes)}</span>
     </span>
     """
   end

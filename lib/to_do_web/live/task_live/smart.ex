@@ -673,7 +673,7 @@ defmodule ToDoWeb.TaskLive.Smart do
         value={min(@minutes, @capacity)}
         max={@capacity}
       />
-      <div class="text-xs text-base-content/70">
+      <div class="text-xs font-mono text-base-content/70">
         <span :if={@minutes <= @capacity}>~{format_minutes(@minutes)} of {format_minutes(@capacity)}</span>
         <span :if={@minutes > @capacity} class="text-warning-content font-medium">
           ~{format_minutes(@minutes)} — {format_minutes(@minutes - @capacity)} over your {format_minutes(@capacity)} capacity
@@ -709,7 +709,7 @@ defmodule ToDoWeb.TaskLive.Smart do
             <span
               :if={@scope == :today and badge_rows(@has_plan?, @plan_rows, @rows) != []}
               class={[
-                "inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium",
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium font-mono",
                 over_capacity?(badge_rows(@has_plan?, @plan_rows, @rows), @daily_capacity_minutes) && "bg-warning/25 text-base-content",
                 !over_capacity?(badge_rows(@has_plan?, @plan_rows, @rows), @daily_capacity_minutes) && "bg-base-200 text-base-content/70"
               ]}

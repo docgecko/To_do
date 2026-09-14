@@ -17,42 +17,45 @@
   themes: false;
 }
 
-/* daisyUI theme plugin — Orelle "Linear" palette.
-  Cool grays + indigo primary. Light + dark share a single design language so
-  toggling between modes feels like a temperature shift, not a different app.
-  Build your own at: https://daisyui.com/theme-generator/ */
+/* daisyUI themes — Orelle "Site Diary", Drawing Blue scheme.
+  A working document from the drawing office: cool paper, graphite-blue ink,
+  one drawing-office blue for actions. Amber is reserved for over-capacity
+  and nothing else; green is only ever "done". Flat (depth 0), 2px corners,
+  1.5px rules. Light and dark are the same sheet by day and by night.
+  Alternative schemes (Pencil, Field Book, Blueprint, Indigo Kept) swap only
+  these token blocks; nothing structural depends on the values. */
 @plugin "../vendor/daisyui-theme" {
   name: "dark";
   default: false;
   prefersdark: true;
   color-scheme: "dark";
-  --color-base-100: oklch(20% 0.005 270);
-  --color-base-200: oklch(25% 0.005 270);
-  --color-base-300: oklch(32% 0.008 270);
-  --color-base-content: oklch(96% 0.005 270);
-  --color-primary: oklch(72% 0.150 275);
-  --color-primary-content: oklch(18% 0.020 275);
-  --color-secondary: oklch(60% 0.020 270);
-  --color-secondary-content: oklch(98% 0.005 270);
-  --color-accent: oklch(75% 0.150 220);
-  --color-accent-content: oklch(18% 0.020 220);
-  --color-neutral: oklch(38% 0.010 270);
-  --color-neutral-content: oklch(96% 0.005 270);
-  --color-info: oklch(72% 0.130 235);
-  --color-info-content: oklch(18% 0.020 235);
-  --color-success: oklch(72% 0.130 175);
-  --color-success-content: oklch(18% 0.020 175);
-  --color-warning: oklch(75% 0.150 75);
-  --color-warning-content: oklch(20% 0.030 75);
-  --color-error: oklch(70% 0.180 25);
-  --color-error-content: oklch(98% 0.010 25);
-  --radius-selector: 0.25rem;
-  --radius-field: 0.25rem;
-  --radius-box: 0.5rem;
+  --color-base-100: #141A21;
+  --color-base-200: #1B232C;
+  --color-base-300: #2F3B48;
+  --color-base-content: #E6EBF1;
+  --color-primary: #86AEE8;
+  --color-primary-content: #0D1A2B;
+  --color-secondary: #93A0AE;
+  --color-secondary-content: #0D1A2B;
+  --color-accent: #9BB9E6;
+  --color-accent-content: #0D1A2B;
+  --color-neutral: #232D38;
+  --color-neutral-content: #E6EBF1;
+  --color-info: #86AEE8;
+  --color-info-content: #0D1A2B;
+  --color-success: #6FCF9B;
+  --color-success-content: #0B1F14;
+  --color-warning: #F2B23F;
+  --color-warning-content: #F8D48A;
+  --color-error: #E07070;
+  --color-error-content: #2B0C0C;
+  --radius-selector: 0.125rem;
+  --radius-field: 0.125rem;
+  --radius-box: 0.25rem;
   --size-selector: 0.21875rem;
   --size-field: 0.21875rem;
   --border: 1.5px;
-  --depth: 1;
+  --depth: 0;
   --noise: 0;
 }
 
@@ -61,35 +64,51 @@
   default: true;
   prefersdark: false;
   color-scheme: "light";
-  --color-base-100: oklch(99% 0 0);
-  --color-base-200: oklch(97% 0.005 270);
-  --color-base-300: oklch(91% 0.005 270);
-  --color-base-content: oklch(18% 0.010 270);
-  --color-primary: oklch(55% 0.180 275);
-  --color-primary-content: oklch(98% 0.010 275);
-  --color-secondary: oklch(45% 0.020 270);
-  --color-secondary-content: oklch(98% 0.005 270);
-  --color-accent: oklch(60% 0.150 220);
-  --color-accent-content: oklch(98% 0.010 220);
-  --color-neutral: oklch(35% 0.010 270);
-  --color-neutral-content: oklch(98% 0.005 270);
-  --color-info: oklch(58% 0.150 235);
-  --color-info-content: oklch(98% 0.010 235);
-  --color-success: oklch(60% 0.130 175);
-  --color-success-content: oklch(98% 0.010 175);
-  --color-warning: oklch(72% 0.150 75);
-  --color-warning-content: oklch(22% 0.030 75);
-  --color-error: oklch(58% 0.180 25);
-  --color-error-content: oklch(98% 0.010 25);
-  --radius-selector: 0.25rem;
-  --radius-field: 0.25rem;
-  --radius-box: 0.5rem;
+  --color-base-100: #FFFFFF;
+  --color-base-200: #F3F4F6;
+  --color-base-300: #D3DAE2;
+  --color-base-content: #1B2430;
+  --color-primary: #1F4E8C;
+  --color-primary-content: #FFFFFF;
+  --color-secondary: #5B6875;
+  --color-secondary-content: #FFFFFF;
+  --color-accent: #2F63A8;
+  --color-accent-content: #FFFFFF;
+  --color-neutral: #2B3644;
+  --color-neutral-content: #F3F4F6;
+  --color-info: #2F63A8;
+  --color-info-content: #FFFFFF;
+  --color-success: #2E7D5B;
+  --color-success-content: #FFFFFF;
+  --color-warning: #C98A00;
+  --color-warning-content: #5A3D00;
+  --color-error: #B23A3A;
+  --color-error-content: #FFFFFF;
+  --radius-selector: 0.125rem;
+  --radius-field: 0.125rem;
+  --radius-box: 0.25rem;
   --size-selector: 0.21875rem;
   --size-field: 0.21875rem;
   --border: 1.5px;
-  --depth: 1;
+  --depth: 0;
   --noise: 0;
 }
+
+/* Type. Archivo for everything, Archivo Narrow for the tracked uppercase labels
+   (section heads, sidebar headings), JetBrains Mono for figures so times,
+   estimates and counts line up like a register. Loaded in root.html.heex. */
+@theme {
+  --font-sans: "Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-label: "Archivo Narrow", "Arial Narrow", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@layer base {
+  html { font-variant-numeric: tabular-nums; }
+}
+
+/* Every uppercase, tracked label in the app is a drawing-sheet label. */
+.uppercase { font-family: var(--font-label); letter-spacing: 0.08em; }
 
 /* Add variants based on LiveView classes */
 @custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
