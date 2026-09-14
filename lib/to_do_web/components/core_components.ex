@@ -259,23 +259,25 @@ defmodule ToDoWeb.CoreComponents do
 
   def goal_chips(assigns) do
     ~H"""
+    <%!-- Site Diary: goal tags as small drawing-sheet labels — narrow
+         uppercase face, hairline border, a square swatch in the goal's colour. --%>
     <div :if={@goals not in [nil, []]} class="mt-1.5 flex flex-wrap gap-1">
       <%= for goal <- @goals do %>
         <.link
           :if={@linked}
           navigate={"/goals/#{goal.id}"}
-          class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-base-200/60 text-xs text-base-content/70 hover:bg-base-300/60 hover:text-base-content max-w-[12rem]"
+          class="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded border border-base-300 bg-base-100 uppercase text-[10px] font-semibold text-base-content/80 hover:border-base-content/50 hover:text-base-content max-w-[12rem]"
           title={"Goal: #{goal.name}"}
         >
-          <span class="w-1.5 h-1.5 rounded-full shrink-0" style={"background:#{goal.color || "#3b82f6"}"} />
+          <span class="w-1.5 h-1.5 shrink-0" style={"background:#{goal.color || "#3b82f6"}"} />
           <span class="truncate">{goal.name}</span>
         </.link>
         <span
           :if={!@linked}
-          class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-base-200/60 text-xs text-base-content/70 max-w-[12rem]"
+          class="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded border border-base-300 bg-base-100 uppercase text-[10px] font-semibold text-base-content/80 max-w-[12rem]"
           title={"Goal: #{goal.name}"}
         >
-          <span class="w-1.5 h-1.5 rounded-full shrink-0" style={"background:#{goal.color || "#3b82f6"}"} />
+          <span class="w-1.5 h-1.5 shrink-0" style={"background:#{goal.color || "#3b82f6"}"} />
           <span class="truncate">{goal.name}</span>
         </span>
       <% end %>

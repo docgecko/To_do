@@ -262,11 +262,14 @@ defmodule ToDoWeb.Layouts do
                 active={@active == :board and is_nil(@current_group_id)}
                 patch
               />
+              <%!-- Group colour is one system: the same swatch here, on the
+                   board's folder tabs, and on each card. --%>
               <.nav_item
                 :for={g <- (Map.get(@current_board, :groups) || [])}
                 href={~p"/boards/#{@current_board.id}?group=#{g.id}"}
                 label={g.name}
                 icon="hero-folder"
+                color={g.color || "#64748b"}
                 active={@active == :board and @current_group_id == g.id}
                 patch
               />
@@ -292,6 +295,7 @@ defmodule ToDoWeb.Layouts do
   attr :active, :boolean, default: false
   attr :patch, :boolean, default: false
   attr :badge, :integer, default: 0, doc: "count shown at the right edge when > 0"
+  attr :color, :string, default: nil, doc: "board group colour: a square swatch replaces the icon"
 
   defp nav_item(%{patch: true} = assigns) do
     ~H"""
@@ -303,7 +307,8 @@ defmodule ToDoWeb.Layouts do
         !@active && "text-base-content/80 hover:bg-base-300/60"
       ]}
     >
-      <.icon name={@icon} class="size-4" />
+      <span :if={@color} class="size-4 flex items-center justify-center shrink-0"><span class="size-2.5" style={"background:#{@color}"} /></span>
+      <.icon :if={!@color} name={@icon} class="size-4" />
       <span class="flex-1">{@label}</span>
       <span
         :if={@badge > 0}
@@ -329,7 +334,8 @@ defmodule ToDoWeb.Layouts do
         !@active && "text-base-content/80 hover:bg-base-300/60"
       ]}
     >
-      <.icon name={@icon} class="size-4" />
+      <span :if={@color} class="size-4 flex items-center justify-center shrink-0"><span class="size-2.5" style={"background:#{@color}"} /></span>
+      <.icon :if={!@color} name={@icon} class="size-4" />
       <span class="flex-1">{@label}</span>
       <span
         :if={@badge > 0}

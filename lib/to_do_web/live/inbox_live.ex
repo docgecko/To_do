@@ -269,18 +269,18 @@ defmodule ToDoWeb.InboxLive do
           </button>
         </div>
 
-        <div :if={@items == []} class="text-center text-base-content/60 py-16 border border-dashed border-base-300 rounded">
+        <div :if={@items == []} class="text-center text-sm text-base-content/60 py-16 border border-dashed border-base-300 rounded bg-base-100">
           Nothing to process.
-          <div class="text-sm mt-1">Press <kbd class="kbd kbd-xs">⌘K</kbd> anywhere to capture something.</div>
+          <div class="mt-1">Press <kbd class="kbd kbd-xs">⌘K</kbd> anywhere to capture something.</div>
         </div>
 
         <div :if={@items != []} class="grid grid-cols-1 lg:grid-cols-5 gap-6">
           <%!-- Queue --%>
           <section class="lg:col-span-2 space-y-2">
-            <h2 class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
+            <h2 class="sheet-head text-xs font-semibold uppercase tracking-wide">
               Inbox · {length(@items)}
             </h2>
-            <ul class="border border-base-300 rounded divide-y divide-base-300">
+            <ul class="border border-base-300 rounded divide-y divide-base-300 bg-base-100">
               <li
                 :for={item <- @items}
                 id={"inbox-item-#{item.id}"}

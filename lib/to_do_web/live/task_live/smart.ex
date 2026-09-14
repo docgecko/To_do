@@ -362,6 +362,15 @@ defmodule ToDoWeb.TaskLive.Smart do
     rows |> open_rows() |> Enum.map(&(&1.task.estimated_minutes || 0)) |> Enum.sum()
   end
 
+  # Empty states say what to do next, in one line.
+  defp empty_line(:today), do: "Nothing due today."
+  defp empty_line(:upcoming), do: "Nothing due in the next seven days."
+  defp empty_line(:anytime), do: "Nothing without a date. Capture with ⌘K and it lands in your Inbox."
+  defp empty_line(:waiting), do: "Nothing waiting on anyone."
+  defp empty_line(:completed), do: "Nothing completed yet. Ticked tasks collect here."
+  defp empty_line(:trash), do: "Trash is empty."
+  defp empty_line(_), do: "Nothing here."
+
   # After 18:00 in the user's zone, nudge towards wrap-up (banner only).
   defp evening?(tz), do: DateTime.now!(tz).hour >= 18
 
@@ -629,8 +638,8 @@ defmodule ToDoWeb.TaskLive.Smart do
 
   defp candidate_group(assigns) do
     ~H"""
-    <details :if={@rows != []} open={@open} class="border border-base-300 rounded">
-      <summary class="cursor-pointer select-none px-3 py-2 text-xs font-semibold uppercase tracking-wide text-base-content/60 hover:bg-base-200/60">
+    <details :if={@rows != []} open={@open} class="border border-base-300 rounded bg-base-100">
+      <summary class="cursor-pointer select-none px-3 py-2 text-xs font-semibold uppercase tracking-wide text-base-content/70 hover:bg-base-200/60">
         {@title} · {length(@rows)}
       </summary>
       <ul class="divide-y divide-base-300 border-t border-base-300">
@@ -807,8 +816,11 @@ defmodule ToDoWeb.TaskLive.Smart do
           <button type="button" phx-click="open_wrap_up" class="btn btn-xs btn-ghost">Wrap up →</button>
         </div>
 
-        <div :if={@rows == [] and @plan_rows == [] and @trashed_inbox == [] and not @planning?} class="text-center text-base-content/60 py-12">
-          Nothing here.
+        <div
+          :if={@rows == [] and @plan_rows == [] and @trashed_inbox == [] and not @planning?}
+          class="text-center text-sm text-base-content/60 py-12 border border-dashed border-base-300 rounded bg-base-100"
+        >
+          {empty_line(@scope)}
           <div :if={@scope == :today} class="mt-3">
             <.link patch={~p"/today?plan=1&view=#{@view}"} class="btn btn-sm btn-outline">Plan today</.link>
           </div>
@@ -961,8 +973,8 @@ defmodule ToDoWeb.TaskLive.Smart do
 
         <%!-- ============ Trash: discarded Inbox items ============ --%>
         <div :if={@scope == :trash and @trashed_inbox != []} class="space-y-2">
-          <h2 class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
-            Captured items · {length(@trashed_inbox)}
+          <h2 class="sheet-head text-xs font-semibold uppercase tracking-wide">
+            Captured items · {pad2(length(@trashed_inbox))}
           </h2>
           <ul class="border border-base-300 rounded divide-y divide-base-300">
             <li :for={item <- @trashed_inbox} id={"trashed-inbox-#{item.id}"} class="flex items-start gap-3 p-3 bg-base-100">

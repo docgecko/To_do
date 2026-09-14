@@ -227,7 +227,7 @@ defmodule ToDoWeb.TaskLive.PlanningTest do
 
     {:ok, _lv, html} = live(conn, ~p"/today")
     refute html =~ "Due today"
-    assert html =~ "Nothing here."
+    assert html =~ "Nothing due today."
 
     # Planning candidates: not overdue/due-today, but offered under Waiting.
     {:ok, _lv, html} = live(conn, ~p"/today?plan=1")
