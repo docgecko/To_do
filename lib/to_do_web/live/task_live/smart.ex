@@ -362,8 +362,6 @@ defmodule ToDoWeb.TaskLive.Smart do
     rows |> open_rows() |> Enum.map(&(&1.task.estimated_minutes || 0)) |> Enum.sum()
   end
 
-  defp over_capacity?(rows, capacity), do: estimate_total(rows) > capacity
-
   # After 18:00 in the user's zone, nudge towards wrap-up (banner only).
   defp evening?(tz), do: DateTime.now!(tz).hour >= 18
 
@@ -426,24 +424,6 @@ defmodule ToDoWeb.TaskLive.Smart do
     Enum.reject([goal_s, est_s], &is_nil/1)
   end
 
-  defp committed_label(rows) do
-    open = open_rows(rows)
-    n = length(open)
-    noun = if n == 1, do: "task", else: "tasks"
-    unestimated = Enum.count(open, &is_nil(&1.task.estimated_minutes))
-
-    case estimate_total(open) do
-      0 ->
-        "#{n} #{noun} · no estimates yet"
-
-      total when unestimated > 0 ->
-        "#{n} #{noun} · ~#{format_minutes(total)} committed (#{unestimated} unestimated)"
-
-      total ->
-        "#{n} #{noun} · ~#{format_minutes(total)} committed"
-    end
-  end
-
   defp repeat_label(nil, _), do: nil
   defp repeat_label("", _), do: nil
   defp repeat_label(unit, every) when is_binary(unit) do
@@ -480,6 +460,8 @@ defmodule ToDoWeb.TaskLive.Smart do
   attr :id_prefix, :string, required: true
   attr :draggable, :boolean, default: false
   attr :handle_attr, :string, default: "data-list-drag-handle"
+  # Register number (01, 02 …) shown on planned rows: the plan is ordered.
+  attr :index, :integer, default: nil
 
   defp smart_row(assigns) do
     # Done for display purposes: task done, or a completed occurrence on
@@ -499,6 +481,9 @@ defmodule ToDoWeb.TaskLive.Smart do
         title="Drag to reorder"
       >
         <.icon name="hero-bars-3" class="size-4" />
+      </span>
+      <span :if={@index} class="font-mono text-[11px] leading-5 text-base-content/50 w-5 shrink-0 mt-0.5 text-right select-none">
+        {pad2(@index)}
       </span>
       <input
         :if={@scope != :trash and @mode != :candidate}
@@ -662,6 +647,67 @@ defmodule ToDoWeb.TaskLive.Smart do
     """
   end
 
+  # The day's title block (Site Diary): date, planned count, committed
+  # against capacity with a bar, and a one-word status. Replaces the old
+  # committed badge on Today. Amber only when over capacity.
+  attr :rows, :list, required: true
+  attr :has_plan?, :boolean, required: true
+  attr :coverage, :map, required: true
+  attr :date, :any, required: true
+  attr :capacity, :integer, required: true
+  attr :view, :atom, required: true
+
+  defp sheet_block(assigns) do
+    minutes = estimate_total(assigns.rows)
+    over = minutes - assigns.capacity
+
+    {status, over?} =
+      cond do
+        assigns.rows == [] and not assigns.has_plan? -> {"Nothing due", false}
+        not assigns.has_plan? -> {"Not planned", false}
+        over > 0 -> {"Over by #{sheet_minutes(over)}", true}
+        true -> {"Within capacity", false}
+      end
+
+    assigns =
+      assign(assigns,
+        minutes: minutes,
+        status: status,
+        over?: over?,
+        fill: min(100, round(minutes / max(assigns.capacity, 1) * 100))
+      )
+
+    ~H"""
+    <div class="sheet-block" title="Sum of estimates on open planned tasks against your daily capacity (change it in Settings).">
+      <div>
+        <small>Date</small>
+        <b>{@date |> Calendar.strftime("%a %d %b %Y") |> String.upcase()}</b>
+      </div>
+      <div>
+        <small>Planned</small>
+        <b :if={@has_plan?}>{pad2(@coverage.total + @coverage.done)} · {pad2(@coverage.done)} done</b>
+        <b :if={!@has_plan?}>— · <.link patch={~p"/today?plan=1&view=#{@view}"}>plan today</.link></b>
+      </div>
+      <div>
+        <small>Committed / capacity</small>
+        <b>{sheet_minutes(@minutes)} / {sheet_minutes(@capacity)}</b>
+        <div class="bar"><i class={@over? && "over"} style={"width:#{@fill}%"}></i></div>
+      </div>
+      <div>
+        <small>Status</small>
+        <b class={@over? && "text-warning-content"}>{String.upcase(@status)}</b>
+      </div>
+    </div>
+    """
+  end
+
+  # "3h45", "0h30", "6h00" — the register's fixed-width form of a duration.
+  defp sheet_minutes(m) when is_integer(m) and m >= 0 do
+    "#{div(m, 60)}h#{rem(m, 60) |> Integer.to_string() |> String.pad_leading(2, "0")}"
+  end
+
+  defp pad2(n) when is_integer(n), do: n |> Integer.to_string() |> String.pad_leading(2, "0")
+
   attr :minutes, :integer, required: true
   attr :capacity, :integer, required: true
 
@@ -701,27 +747,10 @@ defmodule ToDoWeb.TaskLive.Smart do
       <div class={[@view == :list && "max-w-3xl", "space-y-4"]}>
         <div :if={not @planning?} class="flex items-center justify-between gap-3 flex-wrap">
           <div class="flex items-center gap-2 flex-wrap text-sm text-base-content/60">
-            <p>{@subtitle}</p>
-            <%!-- Today only: how much you've committed to. Describes the
-                 plan once one exists, else every open task due today.
-                 Amber past the user's daily capacity so overcommit is
-                 visible before the day starts, not in hindsight. --%>
-            <span
-              :if={@scope == :today and badge_rows(@has_plan?, @plan_rows, @rows) != []}
-              class={[
-                "inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium font-mono",
-                over_capacity?(badge_rows(@has_plan?, @plan_rows, @rows), @daily_capacity_minutes) && "bg-warning/25 text-base-content",
-                !over_capacity?(badge_rows(@has_plan?, @plan_rows, @rows), @daily_capacity_minutes) && "bg-base-200 text-base-content/70"
-              ]}
-              title={"Sum of estimates on open #{if @has_plan?, do: "planned", else: "due"} tasks. Turns amber past #{format_minutes(@daily_capacity_minutes)} (change in Settings)."}
-            >
-              <.icon
-                :if={over_capacity?(badge_rows(@has_plan?, @plan_rows, @rows), @daily_capacity_minutes)}
-                name="hero-exclamation-triangle"
-                class="size-3.5"
-              />
-              {committed_label(badge_rows(@has_plan?, @plan_rows, @rows))}
-            </span>
+            <p :if={@scope != :today}>{@subtitle}</p>
+            <p :if={@scope == :today} class="uppercase text-xs font-semibold text-base-content/60">
+              Sheet · {Calendar.strftime(@plan_date, "%A %-d %B")}
+            </p>
           </div>
           <div class="flex items-center gap-2 flex-wrap">
             <div :if={@scope == :today} class="flex items-center gap-1">
@@ -753,6 +782,20 @@ defmodule ToDoWeb.TaskLive.Smart do
             </div>
           </div>
         </div>
+
+        <%!-- Today's title block: how much you've committed to, against
+             capacity. Describes the plan once one exists, else every open
+             task due today. Amber past capacity so overcommit is visible
+             before the day starts, not in hindsight. --%>
+        <.sheet_block
+          :if={@scope == :today and not @planning?}
+          rows={badge_rows(@has_plan?, @plan_rows, @rows)}
+          has_plan?={@has_plan?}
+          coverage={@coverage}
+          date={@plan_date}
+          capacity={@daily_capacity_minutes}
+          view={@view}
+        />
 
         <%!-- Evening nudge — banner only, never a modal ambush. --%>
         <div
@@ -851,22 +894,23 @@ defmodule ToDoWeb.TaskLive.Smart do
              demoted below a fold. --%>
         <div :if={@scope == :today and @view == :list and not @planning? and @has_plan?} class="space-y-6">
           <div class="space-y-2">
-            <div class="flex items-center justify-between gap-2 flex-wrap">
-              <h2 class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
-                Planned · {length(@plan_rows)} · ~{format_minutes(@coverage.total_minutes)}
+            <div class="sheet-head flex items-center justify-between gap-2 flex-wrap">
+              <h2 class="text-xs font-semibold uppercase tracking-wide">
+                Planned · {pad2(length(@plan_rows))} · {sheet_minutes(@coverage.total_minutes)}
               </h2>
-              <span :if={@coverage.total + @coverage.done > 0} class="text-xs text-base-content/50">
+              <span :if={@coverage.total + @coverage.done > 0} class="text-xs font-mono text-base-content/50">
                 done {@coverage.done}/{@coverage.total + @coverage.done} · estimated {@coverage.estimated}/{@coverage.total} · on a goal {@coverage.with_goal}/{@coverage.total}
               </span>
             </div>
-            <ul id="plan-list" phx-hook="SortablePlan" class="border border-base-300 rounded divide-y divide-base-300">
+            <ul id="plan-list" phx-hook="SortablePlan" class="border border-base-300 rounded divide-y divide-base-300 bg-base-100">
               <.smart_row
-                :for={row <- @plan_rows}
+                :for={{row, i} <- Enum.with_index(@plan_rows, 1)}
                 row={row}
                 scope={@scope}
                 task_goals={@task_goals}
                 mode={:planned}
                 id_prefix="today-plan"
+                index={i}
                 draggable
                 handle_attr="data-plan-drag-handle"
               />
@@ -874,10 +918,10 @@ defmodule ToDoWeb.TaskLive.Smart do
           </div>
 
           <details :if={@other_rows != []} open class="space-y-2">
-            <summary class="cursor-pointer select-none text-xs font-semibold uppercase tracking-wide text-base-content/60">
-              Also due today · {length(@other_rows)}
+            <summary class="sheet-head cursor-pointer select-none text-xs font-semibold uppercase tracking-wide">
+              Also due today · {pad2(length(@other_rows))}
             </summary>
-            <ul class="border border-base-300 rounded divide-y divide-base-300 mt-2">
+            <ul class="border border-base-300 rounded divide-y divide-base-300 bg-base-100 mt-2">
               <.smart_row
                 :for={row <- @other_rows}
                 row={row}

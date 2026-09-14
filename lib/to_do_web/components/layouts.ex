@@ -101,12 +101,14 @@ defmodule ToDoWeb.Layouts do
     <%!-- DaisyUI drawer: sidebar slides out on `< md`, always-on at `md+`.
          The hidden checkbox is the toggle target — labels on the hamburger
          and on the backdrop both flip it. No JS needed. --%>
-    <div id="orelle-shell" phx-hook="PullToRefresh" class="drawer md:drawer-open min-h-screen bg-base-100">
+    <%!-- Site Diary: base-200 is the paper the sheets sit on; the header,
+         sidebar, lists and cards are base-100 sheets on top of it. --%>
+    <div id="orelle-shell" phx-hook="PullToRefresh" class="drawer md:drawer-open min-h-screen bg-base-200">
       <input id="orelle-sidebar-drawer" type="checkbox" class="drawer-toggle" />
 
       <%!-- Main content side --%>
       <div class="drawer-content flex flex-col min-w-0 min-h-screen">
-        <header class="h-14 shrink-0 border-b border-base-300 px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4">
+        <header class="h-14 shrink-0 border-b border-base-300 bg-base-100 px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4">
           <div class="flex items-center gap-2 sm:gap-3 min-w-0">
             <%!-- Hamburger — only on small screens. Opens the drawer. --%>
             <label
@@ -159,10 +161,10 @@ defmodule ToDoWeb.Layouts do
         <%!-- Backdrop click closes the drawer (only present on `< md`,
              where md:drawer-open isn't pinning it open). --%>
         <label for="orelle-sidebar-drawer" aria-label="Close menu" class="drawer-overlay"></label>
-        <aside class="w-64 shrink-0 border-r border-base-300 flex flex-col bg-base-200 h-screen">
+        <aside class="w-64 shrink-0 border-r border-base-300 flex flex-col bg-base-100 h-screen">
           <div class="h-14 shrink-0 px-4 border-b border-base-300 flex items-center gap-2">
             <img src={~p"/images/logo.svg"} width="24" class="shrink-0" />
-            <span class="font-semibold truncate">Orelle</span>
+            <span class="uppercase tracking-[0.14em] text-xs font-semibold truncate">Orelle</span>
           </div>
           <nav class="flex-1 overflow-y-auto p-3 space-y-6">
             <div class="space-y-1">
@@ -297,7 +299,7 @@ defmodule ToDoWeb.Layouts do
       patch={@href}
       class={[
         "flex items-center gap-2 px-2 py-1.5 rounded text-sm",
-        @active && "bg-primary text-primary-content font-medium",
+        @active && "bg-primary/10 text-primary font-semibold",
         !@active && "text-base-content/80 hover:bg-base-300/60"
       ]}
     >
@@ -307,7 +309,7 @@ defmodule ToDoWeb.Layouts do
         :if={@badge > 0}
         class={[
           "text-xs font-medium font-mono px-1.5 rounded-full",
-          @active && "bg-primary-content/20 text-primary-content",
+          @active && "bg-primary/15 text-primary",
           !@active && "bg-primary/15 text-primary"
         ]}
       >
@@ -323,7 +325,7 @@ defmodule ToDoWeb.Layouts do
       navigate={@href}
       class={[
         "flex items-center gap-2 px-2 py-1.5 rounded text-sm",
-        @active && "bg-primary text-primary-content font-medium",
+        @active && "bg-primary/10 text-primary font-semibold",
         !@active && "text-base-content/80 hover:bg-base-300/60"
       ]}
     >
@@ -333,7 +335,7 @@ defmodule ToDoWeb.Layouts do
         :if={@badge > 0}
         class={[
           "text-xs font-medium font-mono px-1.5 rounded-full",
-          @active && "bg-primary-content/20 text-primary-content",
+          @active && "bg-primary/15 text-primary",
           !@active && "bg-primary/15 text-primary"
         ]}
       >

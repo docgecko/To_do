@@ -17,34 +17,35 @@
   themes: false;
 }
 
-/* daisyUI themes — Orelle "Site Diary", Drawing Blue scheme.
-  A working document from the drawing office: cool paper, graphite-blue ink,
-  one drawing-office blue for actions. Amber is reserved for over-capacity
-  and nothing else; green is only ever "done". Flat (depth 0), 2px corners,
+/* daisyUI themes — Orelle "Site Diary", Pencil scheme.
+  A working document with no action colour: buttons, links and the selected
+  nav item are ink. The only colours on the page are the ones that mean
+  something: amber for over-capacity, group colours on tabs and goals, red
+  for discard. Done ticks are drawn in ink. Flat (depth 0), 2px corners,
   1.5px rules. Light and dark are the same sheet by day and by night.
-  Alternative schemes (Pencil, Field Book, Blueprint, Indigo Kept) swap only
-  these token blocks; nothing structural depends on the values. */
+  Alternative schemes (Drawing Blue, Field Book, Blueprint, Indigo Kept)
+  swap only these token blocks; nothing structural depends on the values. */
 @plugin "../vendor/daisyui-theme" {
   name: "dark";
   default: false;
   prefersdark: true;
   color-scheme: "dark";
-  --color-base-100: #141A21;
-  --color-base-200: #1B232C;
-  --color-base-300: #2F3B48;
-  --color-base-content: #E6EBF1;
-  --color-primary: #86AEE8;
-  --color-primary-content: #0D1A2B;
-  --color-secondary: #93A0AE;
-  --color-secondary-content: #0D1A2B;
-  --color-accent: #9BB9E6;
-  --color-accent-content: #0D1A2B;
-  --color-neutral: #232D38;
-  --color-neutral-content: #E6EBF1;
-  --color-info: #86AEE8;
-  --color-info-content: #0D1A2B;
-  --color-success: #6FCF9B;
-  --color-success-content: #0B1F14;
+  --color-base-100: #1E1E1E;
+  --color-base-200: #161616;
+  --color-base-300: #333331;
+  --color-base-content: #ECECEA;
+  --color-primary: #ECECEA;
+  --color-primary-content: #161616;
+  --color-secondary: #9A9A97;
+  --color-secondary-content: #161616;
+  --color-accent: #C4C4C0;
+  --color-accent-content: #161616;
+  --color-neutral: #262626;
+  --color-neutral-content: #ECECEA;
+  --color-info: #9A9A97;
+  --color-info-content: #161616;
+  --color-success: #ECECEA;
+  --color-success-content: #161616;
   --color-warning: #F2B23F;
   --color-warning-content: #F8D48A;
   --color-error: #E07070;
@@ -65,20 +66,20 @@
   prefersdark: false;
   color-scheme: "light";
   --color-base-100: #FFFFFF;
-  --color-base-200: #F3F4F6;
-  --color-base-300: #D3DAE2;
-  --color-base-content: #1B2430;
-  --color-primary: #1F4E8C;
+  --color-base-200: #F4F4F3;
+  --color-base-300: #D6D6D3;
+  --color-base-content: #1A1A1A;
+  --color-primary: #1A1A1A;
   --color-primary-content: #FFFFFF;
-  --color-secondary: #5B6875;
+  --color-secondary: #616161;
   --color-secondary-content: #FFFFFF;
-  --color-accent: #2F63A8;
+  --color-accent: #4A4A48;
   --color-accent-content: #FFFFFF;
-  --color-neutral: #2B3644;
-  --color-neutral-content: #F3F4F6;
-  --color-info: #2F63A8;
+  --color-neutral: #2A2A28;
+  --color-neutral-content: #F4F4F3;
+  --color-info: #616161;
   --color-info-content: #FFFFFF;
-  --color-success: #2E7D5B;
+  --color-success: #1A1A1A;
   --color-success-content: #FFFFFF;
   --color-warning: #C98A00;
   --color-warning-content: #5A3D00;
@@ -103,12 +104,77 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+/* Corners: the whole app squares up. Tailwind's radius scale is remapped so
+   every existing rounded-* utility lands between 1px and 8px; DaisyUI's own
+   radius tokens are set in the theme blocks above. Pills (rounded-full) stay. */
+@theme {
+  --radius: 2px;
+  --radius-xs: 1px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 3px;
+  --radius-xl: 4px;
+  --radius-2xl: 6px;
+  --radius-3xl: 8px;
+}
+
 @layer base {
   html { font-variant-numeric: tabular-nums; }
 }
 
 /* Every uppercase, tracked label in the app is a drawing-sheet label. */
 .uppercase { font-family: var(--font-label); letter-spacing: 0.08em; }
+
+/* ---- Site Diary structure ------------------------------------------------ */
+
+/* The day's title block: the sheet's key figures in labelled cells, like the
+   title block on a drawing. base-100 is the sheet, base-200 the paper it sits on. */
+.sheet-block {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1.5fr 1fr;
+  border: 1.5px solid var(--color-base-content);
+  background: var(--color-base-100);
+}
+.sheet-block > div {
+  min-width: 0;
+  padding: 6px 12px;
+  border-right: 1px solid var(--color-base-300);
+  display: grid;
+  gap: 2px;
+  align-content: start;
+}
+.sheet-block > div:last-child { border-right: 0; }
+.sheet-block small {
+  font-family: var(--font-label);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: color-mix(in oklab, var(--color-base-content) 60%, transparent);
+}
+.sheet-block b {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sheet-block b a { text-decoration: underline; text-underline-offset: 2px; }
+.sheet-block .bar { height: 5px; background: var(--color-base-300); margin-top: 4px; }
+.sheet-block .bar i { display: block; height: 100%; background: var(--color-base-content); }
+.sheet-block .bar i.over { background: var(--color-warning); }
+@media (max-width: 640px) {
+  .sheet-block { grid-template-columns: 1fr 1fr; }
+  .sheet-block > div:nth-child(2) { border-right: 0; }
+  .sheet-block > div:nth-child(-n + 2) { border-bottom: 1px solid var(--color-base-300); }
+}
+
+/* Ruled section heads: a 1.5px ink rule above, label face, ink not grey. */
+.sheet-head {
+  border-top: 1.5px solid var(--color-base-content);
+  padding-top: 0.5rem;
+}
+.sheet-head h2, .sheet-head summary { color: var(--color-base-content); }
 
 /* Add variants based on LiveView classes */
 @custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);

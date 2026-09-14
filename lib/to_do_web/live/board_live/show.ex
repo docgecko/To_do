@@ -1191,27 +1191,29 @@ defmodule ToDoWeb.BoardLive.Show do
               data-category-id={group.id}
               class="flex flex-col gap-2 w-full md:w-auto group/grp scroll-mt-20"
             >
+              <%!-- Group header as a folder tab: a sheet with the group's
+                   colour along its top edge and a drawing-sheet label. --%>
               <div
-                class="rounded-t font-semibold text-white min-w-[200px] flex items-stretch"
-                style={"background:#{group.color || "#64748b"}"}
+                class="min-w-[200px] flex items-stretch bg-base-100 border border-base-300 border-t-4"
+                style={"border-top-color:#{group.color || "#64748b"}"}
               >
                 <span
                   :if={@can_edit?}
                   data-category-drag-handle
-                  class="cursor-grab select-none opacity-70 hover:opacity-100 px-3 py-2 flex items-center"
+                  class="cursor-grab select-none text-base-content/40 hover:text-base-content/70 px-3 py-2 flex items-center"
                   title="Drag to reorder group"
                 >⋮⋮</span>
                 <button
                   :if={@can_edit?}
                   phx-click="edit_group"
                   phx-value-id={group.id}
-                  class="flex-1 text-left px-3 py-2 hover:bg-white/10 transition rounded-tr cursor-pointer flex items-center gap-2"
+                  class="flex-1 text-left px-3 py-2 hover:bg-base-200 transition cursor-pointer flex items-center gap-2 uppercase text-xs font-semibold"
                   title="Click to edit group"
                 >
                   <span class="flex-1">{group.name}</span>
                   <span :if={group.waiting} class="text-xs opacity-80" title="Waiting group">⏳</span>
                 </button>
-                <div :if={!@can_edit?} class="flex-1 px-3 py-2 flex items-center gap-2">
+                <div :if={!@can_edit?} class="flex-1 px-3 py-2 flex items-center gap-2 uppercase text-xs font-semibold">
                   <span class="flex-1">{group.name}</span>
                   <span :if={group.waiting} class="text-xs opacity-80" title="Waiting group">⏳</span>
                 </div>
@@ -1227,9 +1229,9 @@ defmodule ToDoWeb.BoardLive.Show do
                 <div
                   :for={sub <- group.children}
                   data-category-id={sub.id}
-                  class="w-full md:w-64 bg-base-100 rounded-lg shadow-sm border border-base-300 flex flex-col group/col"
+                  class="w-full md:w-64 bg-base-100 border border-base-300 flex flex-col group/col"
                 >
-                  <div class="border-b border-base-300 bg-base-200 rounded-t-lg flex items-stretch">
+                  <div class="border-b border-base-300 bg-base-200 flex items-stretch">
                     <span
                       :if={@can_edit?}
                       data-category-drag-handle
@@ -1240,7 +1242,7 @@ defmodule ToDoWeb.BoardLive.Show do
                       :if={@can_edit?}
                       phx-click="edit_column"
                       phx-value-id={sub.id}
-                      class="flex-1 text-left font-medium text-sm px-3 py-2 hover:bg-base-300/60 transition rounded-tr-lg cursor-pointer flex items-center gap-2"
+                      class="flex-1 text-left font-medium text-sm px-3 py-2 hover:bg-base-300/60 transition cursor-pointer flex items-center gap-2"
                       title="Click to edit column"
                     >
                       <span class="flex-1">{sub.name}</span>
@@ -1261,8 +1263,10 @@ defmodule ToDoWeb.BoardLive.Show do
                     <li
                       :for={task <- sub.tasks}
                       data-task-id={task.id}
-                      class="bg-base-100 border border-base-300 rounded p-2 text-sm hover:shadow-sm hover:border-base-content/30 transition group"
+                      class="relative bg-base-100 border border-base-300 rounded p-2 pt-2.5 text-sm hover:border-base-content/40 transition group"
                     >
+                      <%!-- Folder tab in the group's colour along the card's top-left edge. --%>
+                      <span class="pointer-events-none absolute -top-px -left-px h-1 w-9" style={"background:#{group.color || "#64748b"}"} />
                       <div class="flex items-start gap-2">
                         <span :if={@can_edit?} data-drag-handle class="cursor-grab select-none text-base-content/40 pt-0.5">⋮⋮</span>
                         <input

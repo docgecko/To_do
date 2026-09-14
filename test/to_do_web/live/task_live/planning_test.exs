@@ -48,9 +48,11 @@ defmodule ToDoWeb.TaskLive.PlanningTest do
     %{today: today, tz: tz, t_today: t_today, t_later: t_later, t_anytime: t_anytime, goal: goal}
   end
 
-  test "Today renders the commitment badge and Plan today button with no plan", %{conn: conn} do
+  test "Today renders the title block and Plan today button with no plan", %{conn: conn} do
     {:ok, _lv, html} = live(conn, ~p"/today")
-    assert html =~ "1 task · ~1h committed"
+    # The sheet's title block: committed against capacity, and a status.
+    assert html =~ "1h00 / 6h00"
+    assert html =~ "NOT PLANNED"
     assert html =~ "Plan today"
     refute html =~ "Planned ·"
   end
@@ -100,15 +102,16 @@ defmodule ToDoWeb.TaskLive.PlanningTest do
     {:ok, _} = Plans.plan_task(user.id, t_anytime.id, today)
 
     {:ok, lv, html} = live(conn, ~p"/today")
-    assert html =~ "Planned · 1"
-    assert html =~ "Also due today · 1"
+    assert html =~ "Planned · 01"
+    assert html =~ "Also due today · 01"
+    assert html =~ "WITHIN CAPACITY"
     assert html =~ "Edit plan"
     assert html =~ "Wrap up"
 
     # "+ Plan" on the also-due row moves it into Planned.
     lv |> element(~s{#today-other-#{t_today.id} button[phx-click="plan_task"]}) |> render_click()
     html = render(lv)
-    assert html =~ "Planned · 2"
+    assert html =~ "Planned · 02"
     refute html =~ "Also due today"
 
     # Tick the planned task: it stays in Planned (struck through) and the
@@ -201,7 +204,8 @@ defmodule ToDoWeb.TaskLive.PlanningTest do
     assert html =~ ~r{<span[^>]*title="Goal: Ship it"}
     refute html =~ ~r{<a[^>]*edit=task[^>]*>(?:(?!</a>).)*<a }s
 
-    lv |> element(~s{a[href="/today?plan=1&view=board"]}) |> render_click()
+    # The header button (the title block also links to planning).
+    lv |> element(~s{a.btn[href="/today?plan=1&view=board"]}) |> render_click()
     assert render(lv) =~ "Candidates"
 
     lv |> element("a", "Done planning") |> render_click()
