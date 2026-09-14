@@ -53,6 +53,53 @@ defmodule ToDo.Goals do
     %Goal{} |> Goal.changeset(attrs) |> Repo.insert()
   end
 
+  @doc """
+  Reorder a user's goals. `ordered_ids` is the new order of some subset
+  of the user's goals (for example the Active grid). Those goals take, in
+  the new order, the position slots they already occupied between them, so
+  goals outside the subset keep their place relative to the rest — the
+  sidebar (active + paused, one list) doesn't jump around when you reorder
+  just the active ones. Ids that aren't the user's are ignored. Positions
+  are first normalised to 0..N-1 so ties (every goal at the default 0)
+  become distinct slots.
+  """
+  def reorder_goals(user_id, ordered_ids) when is_integer(user_id) and is_list(ordered_ids) do
+    goals = list_goals(user_id)
+    normalised = goals |> Enum.with_index() |> Map.new(fn {g, i} -> {g.id, i} end)
+
+    ids =
+      ordered_ids
+      |> Enum.map(&parse_id/1)
+      |> Enum.filter(&Map.has_key?(normalised, &1))
+      |> Enum.uniq()
+
+    slots = ids |> Enum.map(&normalised[&1]) |> Enum.sort()
+    moved = ids |> Enum.zip(slots) |> Map.new()
+
+    Repo.transaction(fn ->
+      for g <- goals do
+        pos = Map.get(moved, g.id, normalised[g.id])
+
+        if pos != g.position do
+          from(x in Goal, where: x.id == ^g.id) |> Repo.update_all(set: [position: pos])
+        end
+      end
+    end)
+
+    :ok
+  end
+
+  defp parse_id(id) when is_integer(id), do: id
+
+  defp parse_id(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {n, ""} -> n
+      _ -> nil
+    end
+  end
+
+  defp parse_id(_), do: nil
+
   def update_goal(%Goal{} = goal, attrs) do
     goal |> Goal.changeset(attrs) |> Repo.update()
   end

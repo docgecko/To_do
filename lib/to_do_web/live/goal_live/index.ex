@@ -166,6 +166,13 @@ defmodule ToDoWeb.GoalLive.Index do
     end
   end
 
+  # From the SortableGoals hook after a drag: the grid's goal ids in their
+  # new order. Scoped to the user inside the context.
+  def handle_event("reorder_goals", %{"goal_ids" => ids}, socket) when is_list(ids) do
+    :ok = Goals.reorder_goals(socket.assigns.current_scope.user.id, ids)
+    {:noreply, load_goals(socket)}
+  end
+
   def handle_event("delete_goal", %{"id" => id}, socket) do
     user_id = socket.assigns.current_scope.user.id
     goal = Goals.get_user_goal!(String.to_integer(id), user_id)
@@ -292,15 +299,28 @@ defmodule ToDoWeb.GoalLive.Index do
           <h2 class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
             {label} ({length(by_status(@goals, status))})
           </h2>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <%!-- Drag a card by its handle to reorder; the sidebar follows the
+               same order. --%>
+          <div
+            id={"goals-#{status}"}
+            phx-hook="SortableGoals"
+            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+          >
             <div
               :for={goal <- by_status(@goals, status)}
+              id={"goal-card-#{goal.id}"}
+              data-goal-id={goal.id}
               class={[
-                "relative group card bg-base-100 border border-base-300 shadow-sm hover:shadow-md hover:border-primary/40 transition overflow-hidden",
+                "relative group card bg-base-100 border border-base-300 hover:border-base-content/40 transition overflow-hidden",
                 status == "paused" && "opacity-60"
               ]}
             >
               <div class="h-2" style={"background:#{goal.color || "#3b82f6"}"}></div>
+              <span
+                data-goal-drag-handle
+                class="absolute top-3 right-9 cursor-grab active:cursor-grabbing select-none touch-none text-base-content/30 hover:text-base-content/70 text-sm leading-none"
+                title="Drag to reorder"
+              >⋮⋮</span>
               <.link navigate={~p"/goals/#{goal.id}"} class="block card-body p-4 space-y-2">
                 <h3 class="font-semibold truncate">{goal.name}</h3>
                 <p :if={goal.description && goal.description != ""} class="text-xs text-base-content/60 line-clamp-2">
@@ -325,7 +345,7 @@ defmodule ToDoWeb.GoalLive.Index do
               <button
                 phx-click="edit_goal"
                 phx-value-id={goal.id}
-                class="absolute top-3 right-3 opacity-0 group-hover:opacity-100 btn btn-ghost btn-xs"
+                class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 btn btn-ghost btn-xs"
                 title="Edit goal"
               >
                 <.icon name="hero-pencil-square" class="size-4" />

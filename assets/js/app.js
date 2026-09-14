@@ -378,6 +378,28 @@ Hooks.SortablePlan = {
   }
 }
 
+// SortableGoals — drag goal cards (by their ⋮⋮ handle) within the Active
+// or Paused grid on /goals; pushes the grid's new order.
+Hooks.SortableGoals = {
+  mounted() {
+    this.sortable = new Sortable(this.el, {
+      animation: 150,
+      ghostClass: "opacity-40",
+      dragClass: "cursor-grabbing",
+      handle: "[data-goal-drag-handle]",
+      onEnd: () => {
+        const ids = Array.from(this.el.children)
+          .map((el) => el.dataset.goalId)
+          .filter(Boolean)
+        this.pushEvent("reorder_goals", {goal_ids: ids})
+      }
+    })
+  },
+  destroyed() {
+    this.sortable && this.sortable.destroy()
+  }
+}
+
 // QuickAdd — ⌘K / Ctrl+K anywhere opens the capture box (the header "+"
 // dispatches `orelle:quick-add` to do the same). Open/closed state is
 // held by the LiveComponent; this hook only forwards keys and keeps the
