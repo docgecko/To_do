@@ -213,6 +213,28 @@ defmodule ToDoWeb.TaskLive.PlanningTest do
     refute render(lv) =~ "Candidates"
   end
 
+  test "Boards view of Today with a plan splits Planned from Also due today", ctx do
+    %{conn: conn, user: user, today: today, t_today: t_today, t_anytime: t_anytime} = ctx
+    {:ok, _} = Plans.plan_task(user.id, t_anytime.id, today)
+
+    {:ok, lv, html} = live(conn, ~p"/today?view=board")
+    assert html =~ "Planned · 01"
+    assert html =~ "Also due today · 01"
+
+    # The planned card carries its register number and a remove-from-plan ×;
+    # the other card offers + Plan.
+    assert has_element?(lv, "#board-card-planned-#{t_anytime.id} button[phx-click='unplan_task']")
+    assert lv |> element("#board-card-planned-#{t_anytime.id}") |> render() =~ ~r/>\s*01\s*</
+    assert has_element?(lv, "#board-card-other-#{t_today.id} button[phx-click='plan_task']")
+
+    # + Plan on the board moves the card up into the Planned board.
+    lv |> element("#board-card-other-#{t_today.id} button[phx-click='plan_task']") |> render_click()
+    html = render(lv)
+    assert html =~ "Planned · 02"
+    refute html =~ "Also due today"
+    assert has_element?(lv, "#board-card-planned-#{t_today.id}")
+  end
+
   test "waiting tasks stay out of Today/Upcoming/Anytime and show only under Waiting", ctx do
     %{conn: conn, user: user, t_today: t_today, t_later: t_later, t_anytime: t_anytime} = ctx
     {:ok, _} = Boards.update_task(t_today, %{"waiting" => "true"})

@@ -99,6 +99,12 @@ defmodule ToDoWeb.TaskLive.Smart do
     |> assign(:trashed_inbox, if(scope == :trash, do: Inbox.list_trashed(user.id), else: []))
     |> assign(:plan_rows, plan_rows)
     |> assign(:other_rows, other_rows)
+    # Boards view of Today with a plan: the same split as the list, as
+    # two kanbans, plus the register numbers and per-plan done marks.
+    |> assign(:grouped_planned, group_by_board(plan_rows))
+    |> assign(:grouped_other, group_by_board(other_rows))
+    |> assign(:plan_index, plan_rows |> Enum.with_index(1) |> Map.new(fn {r, i} -> {r.task.id, i} end))
+    |> assign(:plan_done_ids, plan_rows |> Enum.filter(&Plans.row_done?/1) |> MapSet.new(& &1.task.id))
     |> assign(:has_plan?, plan_rows != [])
     |> assign(:candidates, candidates)
     |> assign(:task_goals, task_goals)
@@ -717,6 +723,189 @@ defmodule ToDoWeb.TaskLive.Smart do
 
   defp pad2(n) when is_integer(n), do: n |> Integer.to_string() |> String.pad_leading(2, "0")
 
+  # Kanban rendering of a set of rows grouped by board → group → column
+  # (see group_by_board/1). `mode` picks the per-card affordance:
+  #   :all      — plain card (every scope, Today without a plan)
+  #   :planned  — register number from `plan_index` + remove-from-plan ×
+  #   :other    — "+ Plan"
+  # `done_ids` marks rows done for display when the task itself isn't
+  # (a repeating task whose occurrence was completed on this plan).
+  attr :grouped, :list, required: true
+  attr :scope, :atom, required: true
+  attr :task_goals, :map, required: true
+  attr :mode, :atom, default: :all
+  attr :plan_index, :map, default: %{}
+  attr :done_ids, :any, default: MapSet.new()
+  attr :tall, :boolean, default: false
+
+  defp board_view(assigns) do
+    ~H"""
+    <section :for={b <- @grouped} class="space-y-3">
+      <%!-- overflow-x-auto sits here so the horizontal kanban scroll is
+           contained inside this section rather than propagating up to
+           <main>. When this is the only board on the page (`tall`), the
+           scroll container is stretched so its scrollbar reaches the
+           viewport floor; the negative bottom margin cancels <main>'s
+           padding so it sits right at the edge. --%>
+      <div class={["pb-4 overflow-x-auto", @tall && "md:min-h-[calc(100vh-7rem)] md:-mb-6"]}>
+        <%!-- Groups stack vertically on mobile; horizontal kanban at md. --%>
+        <div class="flex flex-col gap-6 md:flex-row md:items-start md:min-w-max md:pr-6">
+          <div :for={grp <- b.groups} class="flex flex-col gap-2 w-full md:w-auto">
+            <%!-- Group header as a folder tab, as on the board page. --%>
+            <.link
+              :if={grp.group && @scope != :trash}
+              navigate={~p"/boards/#{b.board.id}?edit=group:#{grp.group.id}"}
+              class="px-3 py-2 min-w-[200px] block bg-base-100 border border-base-300 border-t-4 uppercase text-xs font-semibold hover:bg-base-200 transition cursor-pointer"
+              style={"border-top-color:#{grp.group.color || "#64748b"}"}
+              title="Click to edit group"
+            >
+              {grp.group.name}
+            </.link>
+            <div
+              :if={grp.group && @scope == :trash}
+              class="px-3 py-2 min-w-[200px] bg-base-100 border border-base-300 border-t-4 uppercase text-xs font-semibold"
+              style={"border-top-color:#{grp.group.color || "#64748b"}"}
+            >
+              {grp.group.name}
+            </div>
+            <div
+              :if={!grp.group}
+              class="px-3 py-2 min-w-[200px] bg-base-100 border border-base-300 border-t-4 border-t-base-content/40 uppercase text-xs font-semibold"
+            >
+              Ungrouped
+            </div>
+
+            <div class="flex flex-col gap-2 md:flex-row md:items-start min-h-[80px]">
+              <div
+                :for={col <- grp.columns}
+                class="w-full md:w-64 bg-base-100 border border-base-300 flex flex-col"
+              >
+                <.link
+                  :if={@scope != :trash}
+                  navigate={~p"/boards/#{b.board.id}?edit=column:#{col.category.id}"}
+                  class="px-3 py-2 border-b border-base-300 font-medium text-sm bg-base-200 hover:bg-base-300/60 transition cursor-pointer block"
+                  title="Click to edit column"
+                >
+                  {col.category.name}
+                </.link>
+                <div :if={@scope == :trash} class="px-3 py-2 border-b border-base-300 font-medium text-sm bg-base-200">
+                  {col.category.name}
+                </div>
+
+                <ul class="flex flex-col gap-1 p-2 min-h-[60px]">
+                  <li
+                    :for={task <- col.tasks}
+                    id={"board-card-#{@mode}-#{task.id}"}
+                    class="relative bg-base-100 border border-base-300 rounded p-2 pt-2.5 text-sm hover:border-base-content/40 transition"
+                  >
+                    <%!-- Folder tab in the group's colour. --%>
+                    <span class="pointer-events-none absolute -top-px -left-px h-1 w-9" style={"background:#{(grp.group && grp.group.color) || "#64748b"}"} />
+                    <div class="flex items-start gap-2">
+                      <span :if={@mode == :planned} class="font-mono text-[10px] leading-5 text-base-content/50 w-4 shrink-0 mt-0.5 text-right select-none">
+                        {pad2(Map.get(@plan_index, task.id, 0))}
+                      </span>
+                      <input
+                        :if={@scope != :trash}
+                        type="checkbox"
+                        checked={task.done or MapSet.member?(@done_ids, task.id)}
+                        phx-click="toggle_done"
+                        phx-value-id={task.id}
+                        class="checkbox checkbox-xs mt-1"
+                      />
+                      <div :if={@scope == :trash} class="flex gap-1 mt-0.5">
+                        <button
+                          phx-click="restore_task"
+                          phx-value-id={task.id}
+                          class="btn btn-ghost btn-xs btn-square"
+                          title="Restore"
+                        >
+                          <.icon name="hero-arrow-uturn-left" class="size-3" />
+                        </button>
+                        <button
+                          phx-click="purge_task"
+                          phx-value-id={task.id}
+                          data-confirm="Permanently delete this task? This cannot be undone."
+                          class="btn btn-ghost btn-xs btn-square text-error"
+                          title="Delete permanently"
+                        >
+                          <.icon name="hero-trash" class="size-3" />
+                        </button>
+                      </div>
+                      <.link
+                        :if={@scope != :trash}
+                        navigate={~p"/boards/#{b.board.id}?edit=task:#{task.id}"}
+                        class="flex-1 min-w-0 cursor-pointer"
+                        title="Click to edit task"
+                      >
+                        <div class={["break-words leading-tight", (task.done or MapSet.member?(@done_ids, task.id)) && "line-through text-base-content/50"]}>
+                          {task.title}
+                        </div>
+                        <div :if={task.notes && task.notes != ""} class="text-xs text-base-content/60 leading-tight whitespace-pre-line">{task.notes}</div>
+                        <div :if={task.due_at || task.estimated_minutes || repeat_label(task.repeat, task.repeat_every) || task.waiting} class="text-xs mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-base-content/70">
+                          <span :if={task.due_at} class="inline-flex items-center gap-1">
+                            <.icon name="hero-clock" class="size-3.5" />
+                            <span>{format_due(task.due_at)}</span>
+                          </span>
+                          <.estimate_chip minutes={task.estimated_minutes} />
+                          <span :if={repeat_label(task.repeat, task.repeat_every)} class="inline-flex items-center gap-1" title="Repeats">
+                            <.icon name="hero-arrow-path" class="size-3.5" />
+                            <span>{repeat_label(task.repeat, task.repeat_every)}</span>
+                          </span>
+                          <span :if={task.waiting} class="inline-flex items-center gap-1" title="Waiting">
+                            <span>⏳</span>
+                            <span>Waiting</span>
+                          </span>
+                        </div>
+                        <.goal_chips goals={@task_goals[task.id]} linked={false} />
+                      </.link>
+                      <div :if={@scope == :trash} class="flex-1 min-w-0">
+                        <div class={["break-words leading-tight", task.done && "line-through text-base-content/50"]}>
+                          {task.title}
+                        </div>
+                        <div :if={task.notes && task.notes != ""} class="text-xs text-base-content/60 leading-tight whitespace-pre-line">{task.notes}</div>
+                      </div>
+                      <button
+                        :if={@mode == :planned}
+                        type="button"
+                        phx-click="unplan_task"
+                        phx-value-id={task.id}
+                        class="btn btn-ghost btn-xs btn-square shrink-0 text-base-content/50 hover:text-base-content"
+                        title="Remove from today's plan"
+                      >
+                        <.icon name="hero-x-mark" class="size-3.5" />
+                      </button>
+                      <button
+                        :if={@mode == :other}
+                        type="button"
+                        phx-click="plan_task"
+                        phx-value-id={task.id}
+                        class="btn btn-ghost btn-xs shrink-0"
+                        title="Add to today's plan"
+                      >
+                        + Plan
+                      </button>
+                    </div>
+                  </li>
+                </ul>
+                <div :if={@scope in [:today, :upcoming, :anytime, :waiting]} class="p-2 border-t border-base-300">
+                  <%!-- `return_to` sends the board LV back to this smart
+                       list when the new-task modal closes. --%>
+                  <.link
+                    navigate={~p"/boards/#{b.board.id}?new=task:#{col.category.id}&return_to=#{return_path(@scope)}"}
+                    class="btn btn-ghost btn-xs w-full justify-start"
+                  >
+                    + Add task
+                  </.link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    """
+  end
+
   attr :minutes, :integer, required: true
   attr :capacity, :integer, required: true
 
@@ -1081,154 +1270,40 @@ defmodule ToDoWeb.TaskLive.Smart do
           </div>
         </.form_modal>
 
-        <div :if={@view == :board and @rows != [] and not @planning?} class="space-y-8">
-          <section :for={b <- @grouped} class="space-y-3">
-            <%!-- overflow-x-auto sits here so the horizontal kanban scroll
-                 is contained inside this section rather than propagating up
-                 to <main>. Without this, wide boards drag the header row
-                 (subtitle + List/Boards toggle) sideways with them, since
-                 the shell's <main> also overflows horizontally.
-
-                 md:min-h-… stretches the scroll container so its bottom
-                 (where the horizontal scrollbar lives) reaches the
-                 viewport floor even when columns are short. The
-                 negative bottom margin cancels <main>'s p-6 padding so
-                 the scrollbar sits right at the viewport edge instead
-                 of hovering ~24px above it. --%>
-            <div class="pb-4 overflow-x-auto md:min-h-[calc(100vh-7rem)] md:-mb-6">
-              <%!-- Same layout pivot as board_live/show.ex: groups stack
-                   vertically and fill the viewport on mobile (so a kanban
-                   board is actually readable on a phone); switches to the
-                   horizontal kanban layout at the `md` breakpoint. --%>
-              <div class="flex flex-col gap-6 md:flex-row md:items-start md:min-w-max md:pr-6">
-                <div :for={grp <- b.groups} class="flex flex-col gap-2 w-full md:w-auto">
-                  <.link
-                    :if={grp.group && @scope != :trash}
-                    navigate={~p"/boards/#{b.board.id}?edit=group:#{grp.group.id}"}
-                    class="px-3 py-2 rounded-t font-semibold text-white min-w-[200px] hover:brightness-110 transition cursor-pointer block"
-                    style={"background:#{grp.group.color || "#64748b"}"}
-                    title="Click to edit group"
-                  >
-                    {grp.group.name}
-                  </.link>
-                  <div
-                    :if={grp.group && @scope == :trash}
-                    class="px-3 py-2 rounded-t font-semibold text-white min-w-[200px]"
-                    style={"background:#{grp.group.color || "#64748b"}"}
-                  >
-                    {grp.group.name}
-                  </div>
-                  <div
-                    :if={!grp.group}
-                    class="px-3 py-2 rounded-t font-semibold text-white min-w-[200px] bg-base-content/40"
-                  >
-                    Ungrouped
-                  </div>
-
-                  <div class="flex flex-col gap-2 md:flex-row md:items-start min-h-[80px]">
-                    <div
-                      :for={col <- grp.columns}
-                      class="w-full md:w-64 bg-base-100 rounded-lg shadow-sm border border-base-300 flex flex-col"
-                    >
-                      <.link
-                        :if={@scope != :trash}
-                        navigate={~p"/boards/#{b.board.id}?edit=column:#{col.category.id}"}
-                        class="px-3 py-2 border-b border-base-300 font-medium text-sm bg-base-200 rounded-t-lg hover:bg-base-300/60 transition cursor-pointer block"
-                        title="Click to edit column"
-                      >
-                        {col.category.name}
-                      </.link>
-                      <div :if={@scope == :trash} class="px-3 py-2 border-b border-base-300 font-medium text-sm bg-base-200 rounded-t-lg">
-                        {col.category.name}
-                      </div>
-
-                      <ul class="flex flex-col gap-1 p-2 min-h-[60px]">
-                        <li
-                          :for={task <- col.tasks}
-                          class="bg-base-100 border border-base-300 rounded p-2 text-sm hover:shadow-sm"
-                        >
-                          <div class="flex items-start gap-2">
-                            <input
-                              :if={@scope != :trash}
-                              type="checkbox"
-                              checked={task.done}
-                              phx-click="toggle_done"
-                              phx-value-id={task.id}
-                              class="checkbox checkbox-xs mt-1"
-                            />
-                            <div :if={@scope == :trash} class="flex gap-1 mt-0.5">
-                              <button
-                                phx-click="restore_task"
-                                phx-value-id={task.id}
-                                class="btn btn-ghost btn-xs btn-square"
-                                title="Restore"
-                              >
-                                <.icon name="hero-arrow-uturn-left" class="size-3" />
-                              </button>
-                              <button
-                                phx-click="purge_task"
-                                phx-value-id={task.id}
-                                data-confirm="Permanently delete this task? This cannot be undone."
-                                class="btn btn-ghost btn-xs btn-square text-error"
-                                title="Delete permanently"
-                              >
-                                <.icon name="hero-trash" class="size-3" />
-                              </button>
-                            </div>
-                            <.link
-                              :if={@scope != :trash}
-                              navigate={~p"/boards/#{b.board.id}?edit=task:#{task.id}"}
-                              class="flex-1 min-w-0 cursor-pointer"
-                              title="Click to edit task"
-                            >
-                              <div class={["break-words leading-tight", task.done && "line-through text-base-content/50"]}>
-                                {task.title}
-                              </div>
-                              <div :if={task.notes && task.notes != ""} class="text-xs text-base-content/60 leading-tight whitespace-pre-line">{task.notes}</div>
-                              <div :if={task.due_at || task.estimated_minutes || repeat_label(task.repeat, task.repeat_every) || task.waiting} class="text-xs mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-base-content/70">
-                                <span :if={task.due_at} class="inline-flex items-center gap-1">
-                                  <.icon name="hero-clock" class="size-3.5" />
-                                  <span>{format_due(task.due_at)}</span>
-                                </span>
-                                <.estimate_chip minutes={task.estimated_minutes} />
-                                <span :if={repeat_label(task.repeat, task.repeat_every)} class="inline-flex items-center gap-1" title="Repeats">
-                                  <.icon name="hero-arrow-path" class="size-3.5" />
-                                  <span>{repeat_label(task.repeat, task.repeat_every)}</span>
-                                </span>
-                                <span :if={task.waiting} class="inline-flex items-center gap-1" title="Waiting">
-                                  <span>⏳</span>
-                                  <span>Waiting</span>
-                                </span>
-                              </div>
-                              <.goal_chips goals={@task_goals[task.id]} linked={false} />
-                            </.link>
-                            <div :if={@scope == :trash} class="flex-1 min-w-0">
-                              <div class={["break-words leading-tight", task.done && "line-through text-base-content/50"]}>
-                                {task.title}
-                              </div>
-                              <div :if={task.notes && task.notes != ""} class="text-xs text-base-content/60 leading-tight whitespace-pre-line">{task.notes}</div>
-                            </div>
-                          </div>
-                        </li>
-                      </ul>
-                      <div :if={@scope in [:today, :upcoming, :anytime, :waiting]} class="p-2 border-t border-base-300">
-                        <%!-- `return_to` tells the board LV where to push_navigate when the
-                             modal closes (cancel or save), so the user lands back on the
-                             smart-list view they came from rather than stuck on the board's
-                             All tab. --%>
-                        <.link
-                          navigate={~p"/boards/#{b.board.id}?new=task:#{col.category.id}&return_to=#{return_path(@scope)}"}
-                          class="btn btn-ghost btn-xs w-full justify-start"
-                        >
-                          + Add task
-                        </.link>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+        <%!-- ============ Boards view ============
+             Today with a plan splits the way the list does: a Planned
+             board (register numbers, remove-from-plan) above everything
+             else due today (with "+ Plan"). Every other scope: one board. --%>
+        <div :if={@view == :board and not @planning? and @scope == :today and @has_plan?} class="space-y-8">
+          <section class="space-y-3">
+            <div class="sheet-head flex items-center justify-between gap-2 flex-wrap">
+              <h2 class="text-xs font-semibold uppercase tracking-wide">
+                Planned · {pad2(length(@plan_rows))} · {sheet_minutes(@coverage.total_minutes)}
+              </h2>
+              <span :if={@coverage.total + @coverage.done > 0} class="text-xs font-mono text-base-content/50">
+                done {@coverage.done}/{@coverage.total + @coverage.done} · estimated {@coverage.estimated}/{@coverage.total} · on a goal {@coverage.with_goal}/{@coverage.total}
+              </span>
             </div>
+            <.board_view
+              grouped={@grouped_planned}
+              scope={@scope}
+              task_goals={@task_goals}
+              mode={:planned}
+              plan_index={@plan_index}
+              done_ids={@plan_done_ids}
+            />
           </section>
+
+          <section :if={@other_rows != []} class="space-y-3">
+            <h2 class="sheet-head text-xs font-semibold uppercase tracking-wide">
+              Also due today · {pad2(length(@other_rows))}
+            </h2>
+            <.board_view grouped={@grouped_other} scope={@scope} task_goals={@task_goals} mode={:other} />
+          </section>
+        </div>
+
+        <div :if={@view == :board and @rows != [] and not @planning? and not (@scope == :today and @has_plan?)} class="space-y-8">
+          <.board_view grouped={@grouped} scope={@scope} task_goals={@task_goals} mode={:all} tall />
         </div>
       </div>
     </Layouts.shell>
