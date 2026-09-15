@@ -278,10 +278,24 @@ defmodule ToDo.Boards do
     case task |> Task.changeset(attrs) |> Repo.update() do
       {:ok, updated} = ok ->
         cleanup_emptied_waiting_mirror(task.category_id, updated.category_id)
+        sync_due_notifications(task, updated)
         ok
 
       error ->
         error
+    end
+  end
+
+  # Keep the bell honest about the task's state. Completing a task settles
+  # its due-soon / overdue notifications (read); reopening raises them
+  # again; a changed due date — including a repeating task advancing when
+  # ticked — clears them so the scanner re-evaluates against the new date.
+  defp sync_due_notifications(%Task{} = before, %Task{} = updated) do
+    cond do
+      updated.due_at != before.due_at -> ToDo.Notifications.clear_task_due(updated.id)
+      updated.done and not before.done -> ToDo.Notifications.settle_task_due(updated.id)
+      before.done and not updated.done -> ToDo.Notifications.reopen_task_due(updated.id)
+      true -> :ok
     end
   end
 
@@ -626,7 +640,16 @@ defmodule ToDo.Boards do
 
   def delete_task(%Task{} = task) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
-    task |> Task.changeset(%{"deleted_at" => now}) |> Repo.update()
+
+    case task |> Task.changeset(%{"deleted_at" => now}) |> Repo.update() do
+      {:ok, _} = ok ->
+        # A trashed task shouldn't keep nagging; the scanner re-raises if restored.
+        ToDo.Notifications.clear_task_due(task.id)
+        ok
+
+      error ->
+        error
+    end
   end
 
   def restore_task(%Task{} = task) do

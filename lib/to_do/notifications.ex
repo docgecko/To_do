@@ -160,6 +160,57 @@ defmodule ToDo.Notifications do
   def toggle_read(%Notification{read_at: nil} = notif), do: mark_read(notif)
   def toggle_read(%Notification{} = notif), do: mark_unread(notif)
 
+  ## Task state → due notifications
+
+  @due_kinds ~w(task_due_soon task_overdue)
+
+  @doc """
+  The task was completed: its due-soon / overdue notifications no longer
+  need attention. Marks them read for every user who has one. Other
+  kinds (shares) are left alone.
+  """
+  def settle_task_due(task_id) when is_integer(task_id) do
+    set_task_due_read(task_id, DateTime.utc_now() |> DateTime.truncate(:second))
+  end
+
+  @doc "The task was reopened: raise its due-soon / overdue notifications again."
+  def reopen_task_due(task_id) when is_integer(task_id), do: set_task_due_read(task_id, nil)
+
+  @doc """
+  The task's due date changed, or the task was deleted: drop its due-soon /
+  overdue notifications. They described the old date, and the partial
+  unique index would otherwise stop the scanner raising a fresh one for
+  the new date.
+  """
+  def clear_task_due(task_id) when is_integer(task_id) do
+    q = task_due_query(task_id)
+    user_ids = affected_users(q)
+    {count, _} = Repo.delete_all(q)
+    Enum.each(user_ids, &broadcast_changed/1)
+    {:ok, count}
+  end
+
+  defp set_task_due_read(task_id, read_at) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    q = task_due_query(task_id)
+    user_ids = affected_users(q)
+    {count, _} = Repo.update_all(q, set: [read_at: read_at, updated_at: now])
+    Enum.each(user_ids, &broadcast_changed/1)
+    {:ok, count}
+  end
+
+  defp task_due_query(task_id) do
+    from(n in Notification, where: n.task_id == ^task_id and n.kind in ^@due_kinds)
+  end
+
+  defp affected_users(query) do
+    query |> select([n], n.user_id) |> distinct(true) |> Repo.all()
+  end
+
+  defp broadcast_changed(user_id) do
+    Phoenix.PubSub.broadcast(@pubsub, topic(user_id), {:notifications, :changed})
+  end
+
   def mark_all_read(user_id) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 

@@ -368,7 +368,10 @@ defmodule ToDoWeb.UserAuth do
     {:halt, refresh_notifications(socket)}
   end
 
-  defp handle_notification_info({:notifications, :all_read}, socket) do
+  # :all_read from "Mark all read"; :changed when a task's state (done,
+  # reopened, rescheduled, deleted) settled or cleared its notifications.
+  defp handle_notification_info({:notifications, event}, socket)
+       when event in [:all_read, :changed] do
     {:halt, refresh_notifications(socket)}
   end
 
