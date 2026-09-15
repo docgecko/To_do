@@ -1275,15 +1275,15 @@ defmodule ToDoWeb.TaskLive.Smart do
              board (register numbers, remove-from-plan) above everything
              else due today (with "+ Plan"). Every other scope: one board. --%>
         <div :if={@view == :board and not @planning? and @scope == :today and @has_plan?} class="space-y-8">
-          <section class="space-y-3">
-            <div class="sheet-head flex items-center justify-between gap-2 flex-wrap">
-              <h2 class="text-xs font-semibold uppercase tracking-wide">
-                Planned · {pad2(length(@plan_rows))} · {sheet_minutes(@coverage.total_minutes)}
-              </h2>
-              <span :if={@coverage.total + @coverage.done > 0} class="text-xs font-mono text-base-content/50">
+          <%!-- Both boards fold, like the list's Also due today. The summary
+               stays a plain block (not flex) so the ▶ marker keeps rendering. --%>
+          <details open class="space-y-3">
+            <summary class="sheet-head cursor-pointer select-none text-xs font-semibold uppercase tracking-wide">
+              Planned · {pad2(length(@plan_rows))} · {sheet_minutes(@coverage.total_minutes)}
+              <span :if={@coverage.total + @coverage.done > 0} class="ml-3 font-mono font-normal normal-case tracking-normal text-base-content/50">
                 done {@coverage.done}/{@coverage.total + @coverage.done} · estimated {@coverage.estimated}/{@coverage.total} · on a goal {@coverage.with_goal}/{@coverage.total}
               </span>
-            </div>
+            </summary>
             <.board_view
               grouped={@grouped_planned}
               scope={@scope}
@@ -1292,14 +1292,14 @@ defmodule ToDoWeb.TaskLive.Smart do
               plan_index={@plan_index}
               done_ids={@plan_done_ids}
             />
-          </section>
+          </details>
 
-          <section :if={@other_rows != []} class="space-y-3">
-            <h2 class="sheet-head text-xs font-semibold uppercase tracking-wide">
+          <details :if={@other_rows != []} open class="space-y-3">
+            <summary class="sheet-head cursor-pointer select-none text-xs font-semibold uppercase tracking-wide">
               Also due today · {pad2(length(@other_rows))}
-            </h2>
+            </summary>
             <.board_view grouped={@grouped_other} scope={@scope} task_goals={@task_goals} mode={:other} />
-          </section>
+          </details>
         </div>
 
         <div :if={@view == :board and @rows != [] and not @planning? and not (@scope == :today and @has_plan?)} class="space-y-8">
