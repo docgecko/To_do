@@ -316,32 +316,36 @@ defmodule ToDoWeb.GoalLive.Index do
               ]}
             >
               <div class="h-2" style={"background:#{goal.color || "#3b82f6"}"}></div>
-              <span
-                data-goal-drag-handle
-                class="absolute top-3 right-9 cursor-grab active:cursor-grabbing select-none touch-none text-base-content/30 hover:text-base-content/70 text-sm leading-none"
-                title="Drag to reorder"
-              >⋮⋮</span>
-              <.link navigate={~p"/goals/#{goal.id}"} class="block card-body p-4 space-y-2">
-                <h3 class="font-semibold truncate">{goal.name}</h3>
-                <p :if={goal.description && goal.description != ""} class="text-xs text-base-content/60 line-clamp-2">
-                  {goal.description}
-                </p>
-                <div class="space-y-1">
-                  <div class="w-full h-1.5 bg-base-300 rounded overflow-hidden">
-                    <div
-                      class="h-full rounded"
-                      style={"width:#{pct(@progress[goal.id] || {0, 0})}%;background:#{goal.color || "#3b82f6"}"}
-                    >
+              <%!-- Handle at the left edge, in line with the title, as on
+                   board cards and list rows; the card body stays a link. --%>
+              <div class="flex items-start gap-2 p-4">
+                <span
+                  data-goal-drag-handle
+                  class="cursor-grab active:cursor-grabbing select-none touch-none text-base-content/40 hover:text-base-content/70 pt-0.5 leading-none shrink-0"
+                  title="Drag to reorder"
+                >⋮⋮</span>
+                <.link navigate={~p"/goals/#{goal.id}"} class="flex-1 min-w-0 space-y-2 pr-6">
+                  <h3 class="font-semibold truncate">{goal.name}</h3>
+                  <p :if={goal.description && goal.description != ""} class="text-xs text-base-content/60 line-clamp-2">
+                    {goal.description}
+                  </p>
+                  <div class="space-y-1">
+                    <div class="w-full h-1.5 bg-base-300 rounded overflow-hidden">
+                      <div
+                        class="h-full rounded"
+                        style={"width:#{pct(@progress[goal.id] || {0, 0})}%;background:#{goal.color || "#3b82f6"}"}
+                      >
+                      </div>
+                    </div>
+                    <div class="flex items-center justify-between text-xs text-base-content/60">
+                      <span>
+                        {elem(@progress[goal.id] || {0, 0}, 0)} of {elem(@progress[goal.id] || {0, 0}, 1)} tasks done
+                      </span>
+                      <span :if={goal.target_date}>Due {format_target(goal.target_date)}</span>
                     </div>
                   </div>
-                  <div class="flex items-center justify-between text-xs text-base-content/60">
-                    <span>
-                      {elem(@progress[goal.id] || {0, 0}, 0)} of {elem(@progress[goal.id] || {0, 0}, 1)} tasks done
-                    </span>
-                    <span :if={goal.target_date}>Due {format_target(goal.target_date)}</span>
-                  </div>
-                </div>
-              </.link>
+                </.link>
+              </div>
               <button
                 phx-click="edit_goal"
                 phx-value-id={goal.id}
