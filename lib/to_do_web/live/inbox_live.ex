@@ -30,6 +30,9 @@ defmodule ToDoWeb.InboxLive do
      |> assign(:my_goals, Goals.list_active_goals(user.id))
      |> assign(:selected_id, nil)
      |> assign(:triage, default_triage(user, destinations))
+     # One draft form per item, keyed by item id, so choices made for one
+     # item (due, effort, goals, plan) never leak into another.
+     |> assign(:drafts, %{})
      |> load_items()}
   end
 
@@ -80,18 +83,52 @@ defmodule ToDoWeb.InboxLive do
       end
 
     socket
+    |> stash_draft()
     |> assign(:items, items)
     |> assign(:selected_id, selected_id)
     |> assign(:selected, Enum.find(items, &(&1.id == selected_id)))
-    |> seed_text_from_selection()
+    |> restore_draft()
   end
 
-  # Title/notes in the form follow the selected item unless the user has
-  # already started editing them for this item.
-  defp seed_text_from_selection(%{assigns: %{selected: nil}} = socket), do: socket
+  # Remember the form as it stands for the item it belongs to, so moving to
+  # another item and back neither loses nor leaks it.
+  defp stash_draft(%{assigns: %{selected: %{id: id}, triage: triage, drafts: drafts}} = socket) do
+    assign(socket, :drafts, Map.put(drafts, id, triage))
+  end
 
-  defp seed_text_from_selection(%{assigns: %{selected: item, triage: triage}} = socket) do
-    assign(socket, :triage, Map.merge(triage, %{"title" => item.title, "notes" => item.notes || ""}))
+  defp stash_draft(socket), do: socket
+
+  # The selected item's own draft; a fresh one on first visit.
+  defp restore_draft(%{assigns: %{selected: nil}} = socket), do: socket
+
+  defp restore_draft(%{assigns: %{selected: item, drafts: drafts, triage: triage}} = socket) do
+    draft = Map.get_lazy(drafts, item.id, fn -> new_draft(item, triage) end)
+
+    socket
+    |> assign(:triage, draft)
+    |> assign(:drafts, Map.put(drafts, item.id, draft))
+  end
+
+  # A fresh form for an item: its title and notes, the last-used board and
+  # column, and nothing else chosen yet.
+  defp new_draft(item, current) do
+    current
+    |> Map.take(["board_id", "category_id"])
+    |> Map.merge(%{
+      "title" => item.title,
+      "notes" => item.notes || "",
+      "due" => "",
+      "estimated_minutes" => "",
+      "goal_ids" => [],
+      "plan_today" => "false"
+    })
+  end
+
+  defp drop_draft(socket, item_id) do
+    socket
+    |> assign(:drafts, Map.delete(socket.assigns.drafts, item_id))
+    # The item is gone; don't stash its form again on the next load.
+    |> assign(:selected, nil)
   end
 
   # Live count updates (from the :mount_inbox hook) mean another tab or
@@ -160,6 +197,7 @@ defmodule ToDoWeb.InboxLive do
             {:noreply,
              socket
              |> assign(:triage, triage)
+             |> drop_draft(item.id)
              |> assign(:selected_id, next_after(socket.assigns.items, item.id))
              |> put_flash(:info, "Moved “#{task.title}”.")
              |> load_items()
@@ -187,6 +225,7 @@ defmodule ToDoWeb.InboxLive do
 
     {:noreply,
      socket
+     |> drop_draft(item.id)
      |> assign(:selected_id, next_after(items, item.id))
      |> put_flash(:info, "Moved to Trash — restore it from there if you change your mind.")
      |> load_items()}

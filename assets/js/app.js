@@ -417,6 +417,16 @@ Hooks.QuickAdd = {
     this.onOpen = () => this.pushEventTo(this.el, "open", {})
     window.addEventListener("keydown", this.onKey)
     window.addEventListener("orelle:quick-add", this.onOpen)
+    // In the note: Enter captures (like the title field), Shift+Enter is a
+    // new line. Delegated on the hook root so it survives DOM patches.
+    this.onNoteKey = (e) => {
+      if (e.key !== "Enter" || e.shiftKey || e.isComposing) return
+      const t = e.target
+      if (!(t instanceof HTMLTextAreaElement) || !t.matches("[data-quick-add-notes]")) return
+      e.preventDefault()
+      t.form && t.form.requestSubmit()
+    }
+    this.el.addEventListener("keydown", this.onNoteKey)
     this.handleEvent("quick-add:focus", () => this.focus())
     // Capture closes the box; confirm it landed with a short toast.
     this.handleEvent("quick-add:captured", ({title}) => this.showToast(title))
@@ -448,6 +458,7 @@ Hooks.QuickAdd = {
     clearTimeout(this.toastTimer)
     window.removeEventListener("keydown", this.onKey)
     window.removeEventListener("orelle:quick-add", this.onOpen)
+    this.el.removeEventListener("keydown", this.onNoteKey)
   }
 }
 

@@ -79,14 +79,23 @@ defmodule ToDoWeb.QuickAdd do
               autocomplete="off"
               phx-debounce="blur"
             />
+            <%!-- Enter captures from here too (the hook submits the form);
+                 Shift+Enter is a new line. --%>
             <textarea
+              id="quick-add-notes"
               name="item[notes]"
-              rows="1"
+              data-quick-add-notes
+              rows="2"
               placeholder="Note (optional)"
               class="textarea textarea-bordered textarea-sm w-full"
             >{@form[:notes].value}</textarea>
-            <div class="text-xs text-base-content/60">
-              Enter to capture · it lands in your Inbox to triage later
+            <div class="flex items-center justify-between gap-3">
+              <div class="text-xs text-base-content/60">
+                Enter captures · Shift+Enter for a new line in the note · lands in your Inbox
+              </div>
+              <button type="submit" id="quick-add-submit" class="btn btn-primary btn-sm shrink-0">
+                Capture
+              </button>
             </div>
           </.form>
         </div>

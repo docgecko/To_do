@@ -30,6 +30,10 @@ defmodule ToDoWeb.InboxLiveTest do
     assert has_element?(lv, closed)
     lv |> element("#quick-add") |> render_hook("open", %{})
     refute has_element?(lv, closed)
+    # A note field and a visible Capture button, so a note can be added and
+    # submitted without finding the way back to the title field.
+    assert has_element?(lv, "#quick-add textarea#quick-add-notes[data-quick-add-notes]")
+    assert has_element?(lv, "#quick-add form button#quick-add-submit[type=submit]")
 
     # Enter captures, the box closes, and the hook is told to show the toast.
     lv |> form("#quick-add form", item: %{title: "Chase Garry"}) |> render_submit()
@@ -52,6 +56,51 @@ defmodule ToDoWeb.InboxLiveTest do
     lv |> form("#quick-add form", item: %{title: "   "}) |> render_submit()
     refute has_element?(lv, closed)
     assert length(Inbox.list_open(user.id)) == 2
+  end
+
+  test "each inbox item keeps its own triage form", %{conn: conn, user: user, goal: goal} do
+    {:ok, a} = Inbox.capture(user.id, %{"title" => "First thing"})
+    {:ok, b} = Inbox.capture(user.id, %{"title" => "Second thing"})
+
+    {:ok, lv, _html} = live(conn, ~p"/inbox")
+    due_is = fn v -> has_element?(lv, "#triage-form input[name='triage[due]'][value='#{v}']") end
+    est_is = fn v -> has_element?(lv, "#triage-form input[name='triage[estimated_minutes]'][value='#{v}']") end
+    goal_on? = fn -> has_element?(lv, "#triage-form input[name='triage[goal_ids][]'][value='#{goal.id}'][checked]") end
+
+    # Fill in the first item's form: due today, 30m, on the goal, planned.
+    render_click(lv, "select", %{"id" => "#{a.id}"})
+    lv |> element(~s{button[phx-value-field="due"][phx-value-to="today"]}) |> render_click()
+    lv |> element(~s{button[phx-value-field="estimated_minutes"][phx-value-to="30"]}) |> render_click()
+    lv |> form("#triage-form", triage: %{goal_ids: ["#{goal.id}"], plan_today: "true", notes: "ring first"}) |> render_change()
+    assert due_is.("today") and est_is.("30") and goal_on?.()
+
+    # The second item starts clean.
+    render_click(lv, "select", %{"id" => "#{b.id}"})
+    assert has_element?(lv, "#triage-form input[name='triage[title]'][value='Second thing']")
+    assert due_is.("") and est_is.("")
+    refute goal_on?.()
+    refute has_element?(lv, "#triage-form input[name='triage[plan_today]'][checked]")
+
+    # Choices made here stay here…
+    lv |> element(~s{button[phx-value-field="due"][phx-value-to="tomorrow"]}) |> render_click()
+
+    # …and the first item's draft comes back intact, edits included.
+    render_click(lv, "select", %{"id" => "#{a.id}"})
+    assert due_is.("today") and est_is.("30") and goal_on?.()
+    assert has_element?(lv, "#triage-form input[name='triage[plan_today]'][checked]")
+    assert lv |> element("#triage-form textarea[name='triage[notes]']") |> render() =~ "ring first"
+
+    render_click(lv, "select", %{"id" => "#{b.id}"})
+    assert due_is.("tomorrow") and est_is.("")
+
+    # Moving the first item takes its own settings, not the second's; the
+    # next item's form is its own draft.
+    render_click(lv, "select", %{"id" => "#{a.id}"})
+    lv |> form("#triage-form") |> render_submit()
+    [task] = Boards.list_smart_tasks(user.id, :today) |> Enum.map(& &1.task) |> Enum.filter(&(&1.title == "First thing"))
+    assert task.estimated_minutes == 30
+    assert Goals.user_goal_ids_for_task(task.id, user.id) == [goal.id]
+    assert due_is.("tomorrow")
   end
 
   test "triage turns the selected item into a task with everything set", ctx do
