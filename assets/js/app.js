@@ -432,7 +432,9 @@ Hooks.QuickAdd = {
     this.handleEvent("quick-add:captured", ({title}) => this.showToast(title))
   },
   updated() {
-    if (this.isOpen()) this.focus()
+    // Every keystroke/blur re-renders the box. Only pull focus to the
+    // title when nothing in the box has it — never out of the note.
+    if (this.isOpen() && !this.hasFocusWithin()) this.focus()
   },
   modal() {
     return this.el.querySelector("[data-quick-add-modal]")
@@ -440,6 +442,11 @@ Hooks.QuickAdd = {
   isOpen() {
     const m = this.modal()
     return !!m && !m.hidden
+  },
+  hasFocusWithin() {
+    const m = this.modal()
+    const a = document.activeElement
+    return !!m && !!a && a !== document.body && m.contains(a)
   },
   focus() {
     const input = this.el.querySelector("input[name='item[title]']")
